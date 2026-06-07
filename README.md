@@ -171,6 +171,8 @@ pipeline** (real-IP resolution → blacklist → geo → device/OS/browser/brand
 → uniqueness → stream routing → bot toggles → macro rendering). Logging to
 ClickHouse is asynchronous and never blocks the response.
 
+![Performance benchmark on Apple M1](docs/img/performance.png)
+
 | Scenario | Requests/sec | p50 | p99 | Errors |
 |---|--:|--:|--:|--:|
 | **Full pipeline** · cookie uniqueness · async log → ClickHouse (302) | **~30,000** | ~1 ms | ~11 ms | 0 |
