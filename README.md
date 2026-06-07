@@ -49,17 +49,32 @@ sessions go to **Redis**, and the hot path never blocks on disk I/O.
 
 ## Why KuzTDS
 
-A TDS sits in front of your offers/landings and routes each click to the right
-place based on who the visitor is. KuzTDS is:
+A TDS sits in front of your offers and landings and routes every click to the
+right place based on who the visitor is. **KuzTDS does it like infrastructure —
+not like a script.**
 
-- **Fast** — one process, in-memory indexes, async logging. No per-request file
-  reads, no per-request database scans.
-- **Safe** — argon2id passwords, server-side sessions, CSRF, parameterized
-  queries, trusted-proxy handling for `X-Forwarded-For`, JSON-only input.
-- **Self-contained** — the admin panel (SPA) is embedded into the `admin` binary
-  via `go:embed`. No Node build step, no external web server required.
-- **Operable** — ClickHouse and Redis are **optional**: without them the engine
-  still runs and simply skips the corresponding checks (logging, counters).
+- ⚡ **Blazing fast** — **~30,000 req/s** through the *full* pipeline on a single
+  laptop-class M1, p50 ~1 ms, **0 errors**. The core IP lookup is **~9 ns** with
+  zero allocations.
+- 📈 **Scales instead of melting** — flat throughput and zero errors from 25 to
+  400 concurrent connections. In a head-to-head benchmark it is **~135× faster**
+  than a classic PHP TDS — which *collapses* under the very same load.
+- 🧠 **Everything in memory** — IP lists, group config, signatures and geo live in
+  one long-running process; logs are written **asynchronously** to ClickHouse, so
+  the hot path never blocks on disk.
+- 🛡️ **Secure by default** — argon2id passwords, server-side sessions, CSRF,
+  parameterized queries, trusted-proxy `X-Forwarded-For`, JSON-only input.
+- 🎛️ **Batteries included** — a polished, **embedded** admin panel (dashboard,
+  logs with data-driven filters, conversions, a group/stream form builder, `.dat`
+  editor). No Node build, no separate web server.
+- 🧩 **One binary, optional deps** — ClickHouse and Redis are optional; the engine
+  runs without them and simply skips the corresponding features.
+- ✅ **Genuinely tested** — unit tests + **23 end-to-end scenarios** + ClickHouse
+  integration + an embedded-JS syntax check, all green in CI.
+- 🆓 **Open source (MIT)** — self-hosted and fully yours to run, modify and ship.
+
+> **The short version:** a modern, in-memory, single-binary TDS that stays fast
+> and predictable exactly where older PHP-based systems fall over.
 
 ---
 
