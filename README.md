@@ -23,6 +23,7 @@ sessions go to **Redis**, and the hot path never blocks on disk I/O.
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Architecture](#architecture)
+- [Performance](#performance)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Core concepts](#core-concepts)
@@ -152,6 +153,39 @@ Key principles: **state lives in process memory** (IP indexes, config,
 signatures, geo) and is refreshed in the background; **rules are data** (a list of
 predicates evaluated in a loop); indexes are swapped **atomically** on hot-reload.
 Full details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+---
+
+## Performance
+
+Measured on a **base Apple M1** (4 performance + 4 efficiency cores, 8 GB RAM),
+macOS 15, Go 1.26 — with the **engine, ClickHouse, Redis, and the load generator
+all running on the same laptop**. They compete for the same 8 cores, so these are
+deliberately conservative "everything on one machine" numbers; a dedicated load
+host and separate database hosts would push them higher.
+
+The load generator sends requests with varied client IPs (`X-Forwarded-For`), a
+mobile User-Agent, and `CF-IPCountry: RU`; redirects are **not** followed, so the
+engine's own response is what's measured. Every scenario runs the **full request
+pipeline** (real-IP resolution → blacklist → geo → device/OS/browser/brand detect
+→ uniqueness → stream routing → bot toggles → macro rendering). Logging to
+ClickHouse is asynchronous and never blocks the response.
+
+| Scenario | Requests/sec | p50 | p99 | Errors |
+|---|--:|--:|--:|--:|
+| **Full pipeline** · cookie uniqueness · async log → ClickHouse (302) | **~30,000** | ~1 ms | ~11 ms | 0 |
+| Uniqueness by IP · Redis `SETNX` on every request (200) | ~16,000 | ~2.6 ms | ~10 ms | 0 |
+| Active bot detection · search-engine IP lists + signatures (200) | ~13,000 | ~3 ms | ~16 ms | 0 |
+
+Throughput stays flat (~30k req/s) and **error-free** as concurrency rises from 25
+to 400 — latency grows but nothing drops. The hot path is allocation-light: the
+core CIDR/IP-range lookup runs in **~9 ns/op with 0 allocations**
+(`go test -bench=Lookup ./internal/ipindex` → ~130M lookups/sec on a single core).
+
+> Throughput differences between rows come purely from how much work each path
+> adds (a Redis round-trip per request, or several IP-list lookups for bots). On
+> server-class hardware with the databases on separate hosts, expect materially
+> higher numbers.
 
 ---
 
