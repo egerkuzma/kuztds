@@ -29,6 +29,7 @@ sessions go to **Redis**, and the hot path never blocks on disk I/O.
 - [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Performance](#performance)
+- [Benchmark vs zTDS](#benchmark-vs-ztds)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Core concepts](#core-concepts)
@@ -193,6 +194,44 @@ core CIDR/IP-range lookup runs in **~9 ns/op with 0 allocations**
 > adds (a Redis round-trip per request, or several IP-list lookups for bots). On
 > server-class hardware with the databases on separate hosts, expect materially
 > higher numbers.
+
+---
+
+## Benchmark vs zTDS
+
+To put those numbers in context, we ran KuzTDS **head-to-head against zTDS** — a
+popular legacy PHP TDS — on the **same Apple M1**, through the **same request
+pipeline** (geo, search-engine IP-list checks, macro rendering, per-request
+logging) and the **same load generator**.
+
+![KuzTDS vs zTDS — head-to-head benchmark](docs/img/vs-ztds.png)
+
+| | KuzTDS (Go) | zTDS (PHP) |
+|---|--:|--:|
+| Single thread | **11,352 req/s** · p50 80 µs | 84 req/s · p50 ~10 ms |
+| 8 concurrent | **23,626 req/s** · 0 errors | collapses (errors, multi-second tails) |
+| 50 concurrent | **27,800 req/s** · 0 errors | collapses (mostly errors) |
+| Scaling | flat to 400 concurrent, **0 errors** | degrades from 2 concurrent, fails by 8 |
+
+**KuzTDS wins decisively** — about **135× faster on a single thread**, and under
+real concurrent load the gap becomes effectively unbounded: the PHP TDS simply
+**stops serving**, while KuzTDS keeps scaling without a single error.
+
+Why such a blowout? It's **architecture, not micro-optimisation**. KuzTDS keeps
+**everything in memory** — IP indexes, group config, signatures, geo — inside one
+long-running process, and writes logs **asynchronously** to ClickHouse, so the hot
+path never blocks. Classic PHP TDS spin up a fresh process on every request, read
+files from disk on every hit, and write each log line **synchronously into a
+single SQLite file behind a global write-lock** — which serializes all traffic and
+collapses the moment real concurrency arrives.
+
+> **In short: everything in memory + async logging = a TDS that scales instead of
+> melting under load.** This is exactly where KuzTDS is built to stay fast and
+> predictable while older PHP-based systems fall over.
+
+Methodology and caveats — see [Performance](#performance) above. These are
+conservative "all on one laptop" numbers; on server hardware both the absolute
+throughput and the gap grow further.
 
 ---
 
