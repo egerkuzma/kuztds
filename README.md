@@ -2,6 +2,11 @@
 
 # KuzTDS
 
+[![CI](https://github.com/egerkuzma/kuztds/actions/workflows/ci.yml/badge.svg)](https://github.com/egerkuzma/kuztds/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/egerkuzma/kuztds)](https://goreportcard.com/report/github.com/egerkuzma/kuztds)
+[![Go version](https://img.shields.io/github/go-mod/go-version/egerkuzma/kuztds)](go.mod)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **A fast, secure, self-hosted Traffic Distribution System (TDS) written in Go.**
 
 KuzTDS takes an incoming visitor, decides **by rules** where to send them
