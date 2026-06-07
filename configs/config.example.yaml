@@ -1,0 +1,29 @@
+# Example configuration. Copy to config.local.yaml (it is in .gitignore).
+# DO NOT PUT SECRETS HERE — only via KUZTDS_* environment variables.
+
+listen_addr: ":8080"
+request_timeout: "5s"
+reload_interval: "60s"        # hot-reload period for IP lists/config
+
+# Trust X-Forwarded-For / CF-Connecting-IP ONLY from these CIDRs (see SECURITY.md).
+trusted_proxies:
+  - "173.245.48.0/20"         # Cloudflare example; auto-updated in production
+  - "127.0.0.1/32"
+
+geo_db_path: "./data/GeoLite2-City.mmdb"
+data_dir: "./data"            # directory of .dat lists
+
+clickhouse:
+  addr: "127.0.0.1:9000"
+  database: "kuztds"
+  username: "kuztds"
+  # password -> env KUZTDS_CLICKHOUSE_PASSWORD
+
+redis:
+  addr: "127.0.0.1:6379"
+  db: 0
+  # password -> env KUZTDS_REDIS_PASSWORD
+
+# Other secrets only via env:
+#   KUZTDS_PARAM_HMAC_KEY      — signing of packed [ex] parameters
+#   KUZTDS_ADMIN_SESSION_KEY   — admin session signing key

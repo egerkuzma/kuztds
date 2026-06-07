@@ -1,0 +1,439 @@
+[
+  {
+    "id": "promo",
+    "aliases": [
+      "sale"
+    ],
+    "name": "Promo",
+    "status": true,
+    "redirect": "http_redirect",
+    "header": "text/html",
+    "out": "",
+    "geo": "cf",
+    "uniq_method": "ip",
+    "uniq_seconds": 86400,
+    "firewall": {
+      "enabled": false,
+      "queries": 100,
+      "seconds": 60
+    },
+    "save_keys": true,
+    "save_keys_se": true,
+    "streams": [
+      {
+        "name": "mobile_ru_apple",
+        "status": true,
+        "rules": {
+          "lang": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "country": {
+            "flag": 2,
+            "raw": "ru",
+            "values": [
+              "ru"
+            ]
+          },
+          "city": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "region": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "ua_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "referer_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "domain_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "key_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "os": {
+            "flag": 2,
+            "raw": "",
+            "values": [
+              "Android",
+              "iOS"
+            ]
+          },
+          "browser": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "brand": {
+            "flag": 2,
+            "raw": "",
+            "values": [
+              "Apple",
+              "Samsung",
+              "Xiaomi"
+            ]
+          },
+          "schedule": {
+            "enabled": false,
+            "days": [
+              false,
+              true,
+              true,
+              true,
+              true,
+              true,
+              false
+            ]
+          },
+          "ip_list": {
+            "flag": 0,
+            "file": ""
+          },
+          "computer": 1,
+          "phone": 0,
+          "tablet": 1,
+          "operators": null,
+          "unique": 0,
+          "yabrowser": 0,
+          "has_referer": 0,
+          "limit": {
+            "enabled": false,
+            "type": 0,
+            "count": 0,
+            "seconds": 0
+          }
+        },
+        "out": {
+          "redirect": "http_redirect",
+          "out": "https://m.example.com/?k=[KEY]\u0026c=[()COUNTRY()]\u0026r=[RANDNUM-1000-9999]",
+          "chance": 100,
+          "distribution": ""
+        },
+        "bots": {
+          "ch_ua": true,
+          "ch_empty_ua": true,
+          "ch_empty_ref": false,
+          "ch_empty_lang": false,
+          "ch_ipv6": false,
+          "ch_ptr": false,
+          "ch_list_ua": false,
+          "ch_bot_ip_baidu": false,
+          "ch_bot_ip_bing": false,
+          "ch_bot_ip_google": true,
+          "ch_bot_ip_mail": false,
+          "ch_bot_ip_yahoo": false,
+          "ch_bot_ip_yandex": true,
+          "ch_bot_ip_others": true,
+          "save_ip": false,
+          "redirect": "404_not_found",
+          "out": "",
+          "header": ""
+        },
+        "separation": {
+          "enabled": false,
+          "file": ""
+        },
+        "curl": "",
+        "b_curl": "",
+        "remote": {
+          "enabled": false,
+          "url": "",
+          "regexp": "",
+          "reserved": "",
+          "cache": 0
+        },
+        "api_mac": {
+          "enabled": false,
+          "code": "",
+          "prob": 0
+        }
+      },
+      {
+        "name": "desktop",
+        "status": true,
+        "rules": {
+          "lang": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "country": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "city": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "region": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "ua_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "referer_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "domain_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "key_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "os": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "browser": {
+            "flag": 1,
+            "raw": "",
+            "values": [
+              "curl",
+              "wget"
+            ]
+          },
+          "brand": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "schedule": {
+            "enabled": false,
+            "days": [
+              false,
+              false,
+              false,
+              false,
+              false,
+              false,
+              false
+            ]
+          },
+          "ip_list": {
+            "flag": 0,
+            "file": ""
+          },
+          "computer": 0,
+          "phone": 1,
+          "tablet": 1,
+          "operators": null,
+          "unique": 0,
+          "yabrowser": 0,
+          "has_referer": 0,
+          "limit": {
+            "enabled": false,
+            "type": 0,
+            "count": 0,
+            "seconds": 0
+          }
+        },
+        "out": {
+          "redirect": "http_redirect",
+          "out": "https://example.com/a|||https://example.com/b",
+          "chance": 0,
+          "distribution": ""
+        },
+        "bots": {
+          "ch_ua": true,
+          "ch_empty_ua": true,
+          "ch_empty_ref": false,
+          "ch_empty_lang": false,
+          "ch_ipv6": false,
+          "ch_ptr": false,
+          "ch_list_ua": false,
+          "ch_bot_ip_baidu": false,
+          "ch_bot_ip_bing": true,
+          "ch_bot_ip_google": true,
+          "ch_bot_ip_mail": false,
+          "ch_bot_ip_yahoo": false,
+          "ch_bot_ip_yandex": true,
+          "ch_bot_ip_others": true,
+          "save_ip": false,
+          "redirect": "404_not_found",
+          "out": "",
+          "header": ""
+        },
+        "separation": {
+          "enabled": false,
+          "file": ""
+        },
+        "curl": "",
+        "b_curl": "",
+        "remote": {
+          "enabled": false,
+          "url": "",
+          "regexp": "",
+          "reserved": "",
+          "cache": 0
+        },
+        "api_mac": {
+          "enabled": false,
+          "code": "",
+          "prob": 0
+        }
+      },
+      {
+        "name": "default",
+        "status": true,
+        "rules": {
+          "lang": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "country": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "city": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "region": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "ua_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "referer_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "domain_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "key_text": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "os": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "browser": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "brand": {
+            "flag": 0,
+            "raw": "",
+            "values": null
+          },
+          "schedule": {
+            "enabled": false,
+            "days": [
+              false,
+              false,
+              false,
+              false,
+              false,
+              false,
+              false
+            ]
+          },
+          "ip_list": {
+            "flag": 0,
+            "file": ""
+          },
+          "computer": 0,
+          "phone": 0,
+          "tablet": 0,
+          "operators": null,
+          "unique": 0,
+          "yabrowser": 0,
+          "has_referer": 0,
+          "limit": {
+            "enabled": false,
+            "type": 0,
+            "count": 0,
+            "seconds": 0
+          }
+        },
+        "out": {
+          "redirect": "show_text",
+          "out": "no offer",
+          "chance": 0,
+          "distribution": ""
+        },
+        "bots": {
+          "ch_ua": false,
+          "ch_empty_ua": false,
+          "ch_empty_ref": false,
+          "ch_empty_lang": false,
+          "ch_ipv6": false,
+          "ch_ptr": false,
+          "ch_list_ua": false,
+          "ch_bot_ip_baidu": false,
+          "ch_bot_ip_bing": false,
+          "ch_bot_ip_google": false,
+          "ch_bot_ip_mail": false,
+          "ch_bot_ip_yahoo": false,
+          "ch_bot_ip_yandex": false,
+          "ch_bot_ip_others": false,
+          "save_ip": false,
+          "redirect": "",
+          "out": "",
+          "header": ""
+        },
+        "separation": {
+          "enabled": false,
+          "file": ""
+        },
+        "curl": "",
+        "b_curl": "",
+        "remote": {
+          "enabled": false,
+          "url": "",
+          "regexp": "",
+          "reserved": "",
+          "cache": 0
+        },
+        "api_mac": {
+          "enabled": false,
+          "code": "",
+          "prob": 0
+        }
+      }
+    ]
+  }
+]

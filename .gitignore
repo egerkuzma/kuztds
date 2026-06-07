@@ -1,0 +1,37 @@
+# Binaries
+/bin/
+*.exe
+kuztds-engine
+kuztds-admin
+# command binaries built by go build ./cmd/<name> without -o
+/engine
+/admin
+/apiclient
+
+# Local configs and secrets (DO NOT commit)
+*.local.yaml
+*.env
+.env
+secrets/
+
+# Data (do not version large/sensitive files)
+/data/
+*.mmdb
+*.dat
+*.db
+*.db-wal
+*.db-shm
+
+# Go
+/vendor/
+*.test
+*.out
+coverage.*
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# test geo database (needed by tests)
+!internal/geo/testdata/*.mmdb

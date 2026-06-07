@@ -1,0 +1,26 @@
+# Local development infrastructure: ClickHouse + Redis.
+# Run:  docker compose -f deploy/docker-compose.yml up -d
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # native
+    environment:
+      CLICKHOUSE_DB: kuztds
+      CLICKHOUSE_USER: kuztds
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-devpassword}
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - ch_data:/var/lib/clickhouse
+      - ../migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+
+volumes:
+  ch_data:

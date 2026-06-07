@@ -1,0 +1,105 @@
+[
+  {
+    "id": "promo",
+    "name": "Promo (RU/US segmentation)",
+    "status": true,
+    "redirect": "show_text",
+    "out": "FALLBACK",
+    "geo": "cf",
+    "uniq_method": "cookie",
+    "uniq_seconds": 86400,
+    "firewall": { "enabled": false, "queries": 100, "seconds": 60 },
+    "save_keys": true,
+    "streams": [
+      {
+        "name": "ru_mobile",
+        "status": true,
+        "rules": { "country": { "flag": 2, "values": ["ru"] }, "computer": 1, "tablet": 1 },
+        "out": { "redirect": "http_redirect", "out": "https://m.ru.example/?k=[KEY]&c=[COUNTRY]" },
+        "bots": { "ch_ua": true, "ch_empty_ua": true, "ch_bot_ip_google": true, "ch_bot_ip_yandex": true, "redirect": "404_not_found" }
+      },
+      {
+        "name": "ru_desktop",
+        "status": true,
+        "rules": { "country": { "flag": 2, "values": ["ru"] }, "phone": 1, "tablet": 1 },
+        "out": { "redirect": "show_text", "out": "RU DESKTOP [IP]" },
+        "bots": { "ch_ua": true, "redirect": "skip" }
+      },
+      {
+        "name": "us_all",
+        "status": true,
+        "rules": { "country": { "flag": 2, "values": ["us"] } },
+        "out": { "redirect": "javascript", "out": "window.location='https://us.example/?k=[KEY]'", "distribution": "evenly" },
+        "bots": { "ch_ua": true, "ch_empty_ua": true, "redirect": "404_not_found" }
+      },
+      {
+        "name": "apple_intl",
+        "status": true,
+        "rules": { "brand": { "flag": 2, "values": ["Apple"] } },
+        "out": { "redirect": "show_text", "out": "APPLE [DEVICE] [COUNTRY]" }
+      }
+    ]
+  },
+  {
+    "id": "rotate",
+    "name": "Offer rotation",
+    "status": true,
+    "redirect": "stop",
+    "uniq_method": "ip",
+    "uniq_seconds": 3600,
+    "streams": [
+      {
+        "name": "rotator",
+        "status": true,
+        "rules": {},
+        "out": { "redirect": "show_text", "out": "OFFER_A|||OFFER_B|||OFFER_C", "distribution": "rotator" }
+      }
+    ]
+  },
+  {
+    "id": "filtered",
+    "name": "Filters lang/key/os",
+    "status": true,
+    "redirect": "show_text",
+    "out": "NOPE",
+    "streams": [
+      {
+        "name": "android_ru_buy",
+        "status": true,
+        "rules": {
+          "os": { "flag": 2, "values": ["Android"] },
+          "lang": { "flag": 2, "values": ["ru"] },
+          "key_text": { "flag": 2, "raw": "/buy|kupit/" }
+        },
+        "out": { "redirect": "show_text", "out": "ANDROID RU BUY: [KEY]" }
+      },
+      {
+        "name": "ios_only",
+        "status": true,
+        "rules": { "os": { "flag": 2, "values": ["iOS"] } },
+        "out": { "redirect": "show_text", "out": "iOS [BROWSER]" }
+      },
+      { "name": "rest", "status": true, "rules": {}, "out": { "redirect": "show_text", "out": "REST" } }
+    ]
+  },
+  {
+    "id": "antibot",
+    "name": "Anti-bot",
+    "status": true,
+    "redirect": "stop",
+    "save_keys_se": true,
+    "streams": [
+      {
+        "name": "humans",
+        "status": true,
+        "rules": {},
+        "out": { "redirect": "show_text", "out": "HUMAN CONTENT" },
+        "bots": {
+          "ch_ua": true, "ch_empty_ua": true,
+          "ch_bot_ip_google": true, "ch_bot_ip_bing": true, "ch_bot_ip_yandex": true,
+          "redirect": "404_not_found"
+        }
+      }
+    ]
+  }
+]

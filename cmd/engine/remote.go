@@ -1,0 +1,96 @@
+package main
+
+import (
+	"context"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/egerkuzma/kuztds/internal/config"
+	"github.com/egerkuzma/kuztds/internal/fetch"
+)
+
+// remoteValue loads the value for [REMOTE]:
+// URL substitutions, caching by Cache seconds, regex parsing, fallback to reserved.
+func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, country, city, lang, key string) string {
+	u := rm.URL
+	u = strings.ReplaceAll(u, "[IP]", ip)
+	u = strings.ReplaceAll(u, "[COUNTRY]", country)
+	u = strings.ReplaceAll(u, "[CITY]", city)
+	u = strings.ReplaceAll(u, "[LANG]", lang)
+	u = strings.ReplaceAll(u, "[KEY]", key)
+	ttl := time.Duration(rm.Cache) * time.Second
+	val, err := fc.GetCached("remote:"+u, ttl, func() (string, error) {
+		body, err := fc.Get(ctx, u)
+		if err != nil {
+			return "", err
+		}
+		if strings.HasPrefix(rm.Regexp, "/") {
+			return regexFirst(rm.Regexp, body), nil
+		}
+		return strings.TrimSpace(body), nil
+	})
+	if err != nil || val == "" {
+		return rm.Reserved
+	}
+	return val
+}
+
+// curlBody loads the page at URL and applies find/replace from rules
+// (lines "find|||replace"). Cached for curlCache minutes.
+func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCacheMin int) string {
+	ttl := time.Duration(curlCacheMin) * time.Minute
+	body, err := fc.GetCached("curl:"+url, ttl, func() (string, error) {
+		return fc.Get(ctx, url)
+	})
+	if err != nil && body == "" {
+		return ""
+	}
+	for _, ln := range strings.Split(rules, "\n") {
+		ln = strings.TrimRight(ln, "\r")
+		if ln == "" {
+			continue
+		}
+		find, repl, ok := strings.Cut(ln, "|||")
+		if !ok {
+			continue
+		}
+		body = replaceCI(body, find, repl)
+	}
+	return body
+}
+
+// regexFirst compiles /pattern/flags and returns the first match group.
+func regexFirst(raw, subject string) string {
+	if len(raw) < 2 {
+		return ""
+	}
+	end := strings.LastIndexByte(raw, '/')
+	if end <= 0 {
+		return ""
+	}
+	pattern := raw[1:end]
+	if strings.ContainsRune(raw[end+1:], 'i') {
+		pattern = "(?i)" + pattern
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return ""
+	}
+	m := re.FindStringSubmatch(subject)
+	if len(m) >= 2 {
+		return m[1]
+	}
+	if len(m) == 1 {
+		return m[0]
+	}
+	return ""
+}
+
+// replaceCI is a case-insensitive replacement (equivalent to str_ireplace).
+func replaceCI(s, find, repl string) string {
+	if find == "" {
+		return s
+	}
+	return regexp.MustCompile("(?i)"+regexp.QuoteMeta(find)).ReplaceAllString(s, repl)
+}
