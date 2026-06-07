@@ -52,9 +52,20 @@ func main() {
 		os.Exit(1)
 	}
 	// http client that does NOT follow redirects (we need the engine's Location).
-	hc := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}}
+	// Reuse keep-alive connections to the engine aggressively: one outbound call
+	// is made per inbound request, so a small idle pool would churn connections
+	// and exhaust ports under load.
+	hc := &http.Client{
+		Timeout:       10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		Transport: &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
+			MaxIdleConns:        2048,
+			MaxIdleConnsPerHost: 2048,
+			IdleConnTimeout:     90 * time.Second,
+			ForceAttemptHTTP2:   true,
+		},
+	}
 
 	h := realIP.Middleware(newClientHandler(clientConfig{
 		tdsURL: tdsURL, apiKey: apiKey, groupID: groupID, cookieName: cookieName, hc: hc,
