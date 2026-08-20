@@ -57,7 +57,7 @@ HTTP-запрос
 | Пакет | Роль |
 |-------|------|
 | `ipindex` | CIDR-индекс O(log n) + менеджер списков с hot-reload |
-| `config` | модель групп/потоков (правила-данные) + JSON-загрузчик с алиасами |
+| `config` | модель групп/потоков (правила-данные) + JSON-загрузчик с алиасами, атомарная подмена при hot-reload |
 | `geo` | Resolver: MMDB (MaxMind) / Nop |
 | `detect` | устройство + OS/браузер/бренд (mileusna/useragent) + боты, сигнатуры с hot-reload |
 | `router` | выбор потока (предикаты), фильтры lang/country/.../os/browser/brand/schedule/limit |
@@ -103,4 +103,8 @@ realip с доверенными прокси · argon2id + серверные �
 запросы CH · только JSON · секреты вне VCS · экранирование вывода.
 
 ## Наблюдаемость (план/частично)
-`slog` структурные логи, `/healthz`. `/metrics` (Prometheus) и `pprof` — в TODO.
+`slog` структурные логи и `/healthz`, который отдаёт счётчики потерянных логов в
+`X-Events-Lost` / `X-Events-Lost-Detail` (`full` — переполнение буфера, `insert` —
+хранилище отвергло батч, `late` — запись пришла во время остановки), чтобы
+падающий ClickHouse не выглядел как здоровый. Те же числа пишутся в лог при
+выходе. `/metrics` (Prometheus) и `pprof` — в TODO.

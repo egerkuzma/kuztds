@@ -110,6 +110,12 @@ not like a script.**
   `.dat`), `[REMOTE]` (fetch external content with caching), CURL redirect
   (fetch + find/replace), `api_mac` (mac code in API responses).
 
+**Operations:**
+- Group config, IP lists and bot signatures are re-read in the background when
+  their files change — admin edits go live without restarting the engine.
+- A malformed or missing config is skipped and retried, leaving the running
+  rules in place.
+
 **Uniqueness & protection:**
 - Uniqueness by IP (Redis) or by cookie (dedicated cookie, correct TTL).
 - Anti-flood (max requests per IP per window).
@@ -512,7 +518,11 @@ navigation, **top-right** period picker, settings gear, user, and log-out.
 - `GET /<id>` — serve a group (optionally `?q=<keyword>`, `?p1=..&p2=..`).
 - `GET /?pb=KEY&cid=..&profit=..` — postback pixel.
 - `GET /?api=base64(JSON)` — api-client mode.
-- `GET /healthz` — health probe.
+- `GET /healthz` — health probe. The body stays `ok`; the number of log events
+  that never reached ClickHouse rides along in headers, so it can be scraped
+  without a metrics endpoint: `X-Events-Lost: <total>` and
+  `X-Events-Lost-Detail: full=<n> insert=<n> late=<n>` (buffer overflow / failed
+  insert / pushed during shutdown). The same counters are logged on exit.
 
 **Admin API** (session + CSRF protected): `POST /api/login`, `POST /api/logout`,
 `GET /api/me`, `POST /api/password`, `GET /api/stats/{summary,timeseries,
@@ -550,7 +560,7 @@ cmd/
   apiclient/    landing/donor client
 internal/
   ipindex/      CIDR index O(log n) + list manager with hot-reload
-  config/       group/stream model + JSON loader
+  config/       group/stream model + JSON loader (hot-reload)
   geo/          MMDB (MaxMind) / Nop resolver
   detect/       device + OS/browser/brand + bots, signatures
   router/       stream selection (predicates)

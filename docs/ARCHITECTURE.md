@@ -57,7 +57,7 @@ specific stream; bot_redirect serves bots a separate output.
 | Package | Role |
 |---------|------|
 | `ipindex` | CIDR index O(log n) + list manager with hot-reload |
-| `config` | group/stream model (data rules) + JSON loader with aliases |
+| `config` | group/stream model (data rules) + JSON loader with aliases, atomic swap on hot-reload |
 | `geo` | Resolver: MMDB (MaxMind) / Nop |
 | `detect` | device + OS/browser/brand (mileusna/useragent) + bots, signatures with hot-reload |
 | `router` | stream selection (predicates), filters lang/country/.../os/browser/brand/schedule/limit |
@@ -104,4 +104,8 @@ realip with trusted proxies · argon2id + server-side sessions + CSRF ·
 parameterized CH queries · JSON only · secrets out of VCS · output escaping.
 
 ## Observability (planned/partial)
-`slog` structured logs, `/healthz`. `/metrics` (Prometheus) and `pprof` — in TODO.
+`slog` structured logs and `/healthz`, which carries the log-loss counters in
+`X-Events-Lost` / `X-Events-Lost-Detail` (`full` = buffer overflow, `insert` =
+storage rejected the batch, `late` = pushed during shutdown) so a failing
+ClickHouse does not look like a healthy one. The same numbers are logged on
+exit. `/metrics` (Prometheus) and `pprof` — in TODO.
