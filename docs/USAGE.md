@@ -153,8 +153,10 @@ out{redirect,out,chance,distribution}, bots, separation, remote, api_mac, curl}`
 - `id` — identifier and address `/<id>`; `name` — optional display name.
 - Group defaults (`redirect`/`out`/`header`) apply when a stream sets none.
 - Edited via the UI ("Groups": collapsible tree, stream builder, "Save all").
-  The engine caches groups at startup — after editing the file directly, restart
-  it; edits from the UI are picked up on reload/restart.
+  The engine re-reads the file when it changes, on the `KUZTDS_RELOAD_INTERVAL`
+  ticker (1 min by default), so edits from the UI and edits made to the file
+  directly both go live without a restart. A file that fails to parse — or goes
+  missing — is skipped and retried, leaving the running config in place.
 
 ## Output macros
 
