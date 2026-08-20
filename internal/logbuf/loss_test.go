@@ -38,6 +38,11 @@ func (b *blockingInserter) InsertEvents(_ context.Context, _ []Event) error {
 // TestBuffer_DropsWhilePreviousFlushIsInFlight shows that flush() runs inline in
 // Run's loop: while a slow insert is in flight nobody reads b.in, so a running
 // buffer drops events exactly like a buffer with no Run at all.
+//
+// This one is deliberately NOT fixed here and stays green: the loss-accounting
+// change buys visibility, not durability. A slow ClickHouse still eats the
+// buffer at exactly the same rate — 10000 capacity at 1000 events/sec is ten
+// seconds. Making flush asynchronous is a separate, riskier change.
 func TestBuffer_DropsWhilePreviousFlushIsInFlight(t *testing.T) {
 	ins := newBlockingInserter()
 	// capacity=4, batchSize=2, timer disabled: two events are enough to enter flush.
@@ -63,6 +68,10 @@ func TestBuffer_DropsWhilePreviousFlushIsInFlight(t *testing.T) {
 	if got := b.Dropped(); got != 16 {
 		t.Fatalf("dropped while flushing = %d, want 16", got)
 	}
+	// Cause matters: this is a full buffer, not a sick storage.
+	if l := b.Losses(); l.Full != 16 || l.Insert != 0 || l.Late != 0 {
+		t.Fatalf("losses = %+v, want Full=16 only", l)
+	}
 
 	close(ins.release)
 }
@@ -86,11 +95,11 @@ func (f *failingInserter) Seen() int {
 	return f.seen
 }
 
-// TestBuffer_InsertFailureIsNotCounted documents the second, quieter loss path:
-// when InsertEvents fails, flush() throws the batch away (only a log line is
-// written) and dropped is left untouched. Every event is gone, yet Dropped()
-// reports zero — so the counter cannot be used to detect this kind of loss.
-func TestBuffer_InsertFailureIsNotCounted(t *testing.T) {
+// TestBuffer_InsertFailureIsCounted covers the second loss path: when
+// InsertEvents fails, flush() throws the batch away and does not retry it.
+// The events are still lost, but they are now added to the loss counter, so a
+// failing storage no longer looks exactly like a healthy one.
+func TestBuffer_InsertFailureIsCounted(t *testing.T) {
 	ins := &failingInserter{}
 	b := New(ins, 100, 5, time.Hour, quietLogger())
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,21 +116,20 @@ func TestBuffer_InsertFailureIsNotCounted(t *testing.T) {
 	if got := ins.Seen(); got != n {
 		t.Fatalf("events handed to storage = %d, want %d", got, n)
 	}
-	// All n events failed to be stored and are not retried anywhere,
-	// but the loss counter stays at zero.
-	if got := b.Dropped(); got != 0 {
-		t.Fatalf("Dropped() = %d, want 0 — this test pins the current behaviour", got)
+	// All n events failed to be stored and are not retried anywhere — the
+	// counter must say so.
+	waitFor(t, func() bool { return b.Dropped() == n })
+	if l := b.Losses(); l.Insert != n || l.Full != 0 || l.Late != 0 {
+		t.Fatalf("losses = %+v, want Insert=%d only", l, n)
 	}
 }
 
-// TestBuffer_PushAfterRunExitsIsSilentlyLost documents the third loss path — the
-// only one that fires on every single restart. cmd/engine/main.go cancels the
-// buffer's context (main.go:183) before it calls srv.Shutdown (main.go:186), so
-// Run drains, returns, and stops reading b.in while the HTTP server keeps
-// serving in-flight requests for up to 10 more seconds. Every Push in that
-// window lands in a channel nobody reads: the event is not inserted, not
-// dropped, and not counted — Dropped() stays at zero.
-func TestBuffer_PushAfterRunExitsIsSilentlyLost(t *testing.T) {
+// TestBuffer_PushAfterShutdownIsCounted covers the third loss path: an event
+// pushed once Run has stopped reading b.in can never reach storage, however much
+// room the channel still has. main.go now shuts the server down before cancelling
+// the buffer, so the window is small — but whatever falls into it is counted
+// instead of vanishing without a trace.
+func TestBuffer_PushAfterShutdownIsCounted(t *testing.T) {
 	ins := &fakeInserter{}
 	// capacity comfortably larger than n, so nothing is lost on the channel path.
 	b := New(ins, 100, 1000, time.Hour, quietLogger())
@@ -149,8 +157,8 @@ func TestBuffer_PushAfterRunExitsIsSilentlyLost(t *testing.T) {
 	if got := ins.Total(); got != 0 {
 		t.Fatalf("events stored after Run exited = %d, want 0", got)
 	}
-	if got := b.Dropped(); got != 0 {
-		t.Fatalf("Dropped() = %d, want 0 — the loss leaves no trace at all; this test pins the current behaviour", got)
+	if l := b.Losses(); l.Late != n || l.Full != 0 || l.Insert != 0 {
+		t.Fatalf("losses = %+v, want Late=%d only — late pushes must be counted, not swallowed", l, n)
 	}
 }
 
@@ -187,15 +195,13 @@ func (s *slowRecordingInserter) Stored() int {
 	return s.stored
 }
 
-// TestBuffer_FinalFlushOutlivesCancel documents the fourth loss path, and the
-// reason reordering cancel() and srv.Shutdown in cmd/engine/main.go is not
-// enough on its own. Run's farewell flush is synchronous: after ctx is
-// cancelled Run drains the channel and only then inserts, under a fresh
-// 30s context.WithTimeout of its own. Returning from Run is the only signal
-// that the batch actually landed — and nothing in main.go waits for it.
-// main.go calls cancel(), logs "engine stopped" and returns, so the process
-// exits while up to batchSize events are still in flight.
-func TestBuffer_FinalFlushOutlivesCancel(t *testing.T) {
+// TestBuffer_DoneWaitsForFinalFlush covers the fourth loss path, the reason
+// reordering cancel() and srv.Shutdown is not enough on its own. Run's farewell
+// flush is synchronous and runs under a 30s timeout of its own, so returning
+// from cancel() proves nothing: the batch may still be inside InsertEvents.
+// Done() is that missing signal — it closes only after the final flush is over,
+// which is what main.go now waits on (bounded by the shutdown deadline).
+func TestBuffer_DoneWaitsForFinalFlush(t *testing.T) {
 	ins := newSlowRecordingInserter()
 	// timer disabled and batchSize above n: the only flush is the one on cancel.
 	b := New(ins, 100, 1000, time.Hour, quietLogger())
@@ -220,29 +226,33 @@ func TestBuffer_FinalFlushOutlivesCancel(t *testing.T) {
 	}
 
 	// This is the instant main.go returns from cancel(). The batch is still
-	// inside InsertEvents: nothing is stored, nothing is counted as dropped,
-	// and Run has not returned. A process exiting here loses all n events.
+	// inside InsertEvents: nothing is stored yet, and Done() is still open —
+	// a process exiting here would lose all n events.
 	if got := ins.Stored(); got != 0 {
 		t.Fatalf("stored at the moment cancel() returns = %d, want 0", got)
 	}
-	if got := b.Dropped(); got != 0 {
-		t.Fatalf("Dropped() = %d, want 0 — the in-flight batch leaves no trace either", got)
-	}
 	select {
-	case <-done:
-		t.Fatal("Run returned before the flush completed")
+	case <-b.Done():
+		t.Fatal("Done() closed before the final flush completed")
 	default:
 	}
 
-	// Only waiting for Run to return makes the events durable — and there is
-	// no way to wait for it: Run returns nothing and closes nothing.
+	// Waiting on Done() is what makes the events durable.
 	close(ins.release)
+	select {
+	case <-b.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("Done() never closed after the flush was released")
+	}
+	if got := ins.Stored(); got != n {
+		t.Fatalf("stored after waiting on Done() = %d, want %d", got, n)
+	}
+	if got := b.Dropped(); got != 0 {
+		t.Fatalf("Dropped() = %d, want 0 — the farewell batch was stored, not lost", got)
+	}
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Run did not return after the flush was released")
-	}
-	if got := ins.Stored(); got != n {
-		t.Fatalf("stored after waiting for Run = %d, want %d", got, n)
+		t.Fatal("Run did not return")
 	}
 }

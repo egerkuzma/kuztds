@@ -15,6 +15,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -157,6 +158,13 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		// Body stays exactly "ok" for existing probes; the loss counter rides
+		// along in a header so it can be scraped without a metrics endpoint.
+		if logs != nil {
+			l := logs.Losses()
+			w.Header().Set("X-Events-Lost", strconv.FormatInt(l.Total(), 10))
+			w.Header().Set("X-Events-Lost-Detail", fmt.Sprintf("full=%d insert=%d late=%d", l.Full, l.Insert, l.Late))
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
@@ -180,10 +188,25 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	cancel()
 	sctx, scancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer scancel()
+	// Stop serving before stopping the log buffer, otherwise in-flight requests
+	// keep pushing events into a buffer nobody drains any more.
 	_ = srv.Shutdown(sctx)
+	cancel()
+	if logs != nil {
+		// Wait for the final flush, but only within the shutdown budget: a dead
+		// ClickHouse would otherwise hold the process for its own 30s timeout.
+		select {
+		case <-logs.Done():
+		case <-sctx.Done():
+			log.Warn("logbuf: final flush did not finish within the shutdown deadline")
+		}
+		l := logs.Losses()
+		log.Info("engine stopped", "events_lost", l.Total(),
+			"lost_full", l.Full, "lost_insert", l.Insert, "lost_late", l.Late)
+		return
+	}
 	log.Info("engine stopped")
 }
 
