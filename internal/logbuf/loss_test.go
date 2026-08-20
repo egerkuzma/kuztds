@@ -68,6 +68,10 @@ func TestBuffer_DropsWhilePreviousFlushIsInFlight(t *testing.T) {
 	if got := b.Dropped(); got != 16 {
 		t.Fatalf("dropped while flushing = %d, want 16", got)
 	}
+	// Cause matters: this is a full buffer, not a sick storage.
+	if l := b.Losses(); l.Full != 16 || l.Insert != 0 || l.Late != 0 {
+		t.Fatalf("losses = %+v, want Full=16 only", l)
+	}
 
 	close(ins.release)
 }
@@ -115,8 +119,8 @@ func TestBuffer_InsertFailureIsCounted(t *testing.T) {
 	// All n events failed to be stored and are not retried anywhere — the
 	// counter must say so.
 	waitFor(t, func() bool { return b.Dropped() == n })
-	if got := b.Dropped(); got != n {
-		t.Fatalf("Dropped() = %d, want %d", got, n)
+	if l := b.Losses(); l.Insert != n || l.Full != 0 || l.Late != 0 {
+		t.Fatalf("losses = %+v, want Insert=%d only", l, n)
 	}
 }
 
@@ -153,8 +157,8 @@ func TestBuffer_PushAfterShutdownIsCounted(t *testing.T) {
 	if got := ins.Total(); got != 0 {
 		t.Fatalf("events stored after Run exited = %d, want 0", got)
 	}
-	if got := b.Dropped(); got != n {
-		t.Fatalf("Dropped() = %d, want %d — late pushes must be counted, not swallowed", got, n)
+	if l := b.Losses(); l.Late != n || l.Full != 0 || l.Insert != 0 {
+		t.Fatalf("losses = %+v, want Late=%d only — late pushes must be counted, not swallowed", l, n)
 	}
 }
 

@@ -58,10 +58,26 @@ type Buffer struct {
 	batchSize  int
 	flushEvery time.Duration
 	log        *slog.Logger
-	dropped    atomic.Int64
 	closed     chan struct{} // Run stopped accepting: Push must count, not enqueue
 	done       chan struct{} // Run returned: the final flush is over
+
+	// Losses are counted per cause, because the three are cured differently:
+	// a full buffer means the writer is too slow, a failed insert means storage
+	// is unhealthy, and a late push means events arrived during shutdown.
+	lostFull   atomic.Int64
+	lostInsert atomic.Int64
+	lostLate   atomic.Int64
 }
+
+// Losses is a per-cause breakdown of events that never reached storage.
+type Losses struct {
+	Full   int64 // buffer was full: Run could not keep up
+	Insert int64 // InsertEvents failed and the batch is not retried
+	Late   int64 // pushed after Run stopped reading
+}
+
+// Total returns the number of lost events across all causes.
+func (l Losses) Total() int64 { return l.Full + l.Insert + l.Late }
 
 // New creates a buffer. capacity — channel size, batchSize — flush threshold by size,
 // flushEvery — maximum flush delay.
@@ -90,25 +106,38 @@ func New(ins Inserter, capacity, batchSize int, flushEvery time.Duration, log *s
 }
 
 // Push puts an event into the buffer without blocking. On overflow — drops it
-// and increments the loss counter. After Run has begun shutting down the event
-// is counted too: the channel would accept it, but nobody would ever read it.
+// and counts it.
+//
+// The shutdown check is best-effort: Run can stop reading in the nanoseconds
+// between the check and the send, in which case the event lands in the channel
+// and is lost uncounted. Closing the door before draining keeps that window to
+// the width of a single select, but it is not zero.
 func (b *Buffer) Push(e Event) {
 	select {
 	case <-b.closed:
-		b.dropped.Add(1)
+		b.lostLate.Add(1)
 		return
 	default:
 	}
 	select {
 	case b.in <- e:
 	default:
-		b.dropped.Add(1)
+		b.lostFull.Add(1)
 	}
 }
 
-// Dropped returns the number of events that never reached storage: dropped on
-// overflow, pushed after shutdown started, or handed to a failing InsertEvents.
-func (b *Buffer) Dropped() int64 { return b.dropped.Load() }
+// Dropped returns the total number of events that never reached storage.
+func (b *Buffer) Dropped() int64 { return b.Losses().Total() }
+
+// Losses returns the loss counters broken down by cause. The three are read
+// separately, so a snapshot taken under load may be a few events out of step.
+func (b *Buffer) Losses() Losses {
+	return Losses{
+		Full:   b.lostFull.Load(),
+		Insert: b.lostInsert.Load(),
+		Late:   b.lostLate.Load(),
+	}
+}
 
 // Done is closed when Run has returned, i.e. the final flush is over. Wait on it
 // during shutdown — but always against a deadline, since the last insert has its
@@ -135,7 +164,7 @@ func (b *Buffer) Run(ctx context.Context) {
 		if err := b.ins.InsertEvents(fctx, cp); err != nil {
 			// The batch is gone and is not retried anywhere — count it as lost,
 			// otherwise a failing storage looks exactly like a healthy one.
-			b.dropped.Add(int64(len(cp)))
+			b.lostInsert.Add(int64(len(cp)))
 			b.log.Error("logbuf: insert failed", "n", len(cp), "err", err)
 		}
 	}

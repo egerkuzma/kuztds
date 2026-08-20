@@ -15,6 +15,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -160,7 +161,9 @@ func main() {
 		// Body stays exactly "ok" for existing probes; the loss counter rides
 		// along in a header so it can be scraped without a metrics endpoint.
 		if logs != nil {
-			w.Header().Set("X-Events-Lost", strconv.FormatInt(logs.Dropped(), 10))
+			l := logs.Losses()
+			w.Header().Set("X-Events-Lost", strconv.FormatInt(l.Total(), 10))
+			w.Header().Set("X-Events-Lost-Detail", fmt.Sprintf("full=%d insert=%d late=%d", l.Full, l.Insert, l.Late))
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -199,7 +202,9 @@ func main() {
 		case <-sctx.Done():
 			log.Warn("logbuf: final flush did not finish within the shutdown deadline")
 		}
-		log.Info("engine stopped", "events_lost", logs.Dropped())
+		l := logs.Losses()
+		log.Info("engine stopped", "events_lost", l.Total(),
+			"lost_full", l.Full, "lost_insert", l.Insert, "lost_late", l.Late)
 		return
 	}
 	log.Info("engine stopped")
