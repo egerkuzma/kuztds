@@ -70,6 +70,12 @@ Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
   `internal/store/firewall_ttl_test.go`, `internal/store/loglimit_test.go`,
   `internal/admin/logs_limit_test.go`. All five fail on the previous code.
 
+- **Change (2026-08-20):** the group is now resolved from the **first path
+  segment** instead of the whole path, so `/promo/iphone-15-sale.html` routes to
+  `promo` like `/promo` does. Matching the whole path sent every deep link to
+  trash mode — an empty 200 by default — while README and ARCHITECTURE had
+  promised first-segment matching all along. `handler.go` + `routing_test.go`.
+
 ## Tests (coverage as of 2026-08-20)
 Run: `go test ./...` (unit) and `go test -tags=integration ./...` (with
 CH+Redis). `go vet ./...` — clean. Coverage command:

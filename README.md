@@ -164,7 +164,7 @@ HTTP request
   ├─ realip middleware  (trust XFF/CF only from trusted_proxies)
   ├─ api mode?  (?api=base64(JSON), checks KUZTDS_API_KEY)
   ├─ IP blacklist        → 403 if listed
-  ├─ resolve group by id/alias (the request path); none → "trash" mode
+  ├─ resolve group by id/alias (first path segment); none → "trash" mode
   ├─ anti-flood (Redis): N requests / IP / window
   ├─ detect device/OS/browser/brand ; geo (mmdb / CF-IPCountry) ; carrier (wap)
   ├─ uniqueness: cookie | Redis SETNX

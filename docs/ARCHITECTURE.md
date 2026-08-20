@@ -26,7 +26,7 @@ HTTP request
   │
   ├─ ipindex.Lookup(ip, ip_blacklist)        → blacklisted: 403
   │
-  ├─ group by id/alias (the request path, or api.id); none → trash mode
+  ├─ group by id/alias (first path segment, or api.id); none → trash mode
   │
   ├─ anti-flood (Redis): N requests/IP per window
   │

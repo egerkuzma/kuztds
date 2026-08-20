@@ -97,10 +97,10 @@ go run ./cmd/admin
 - With extra params: `http://host/<id>?p1=...&p2=...` → macros `[PAR-1..5]`
 - Postback pixel: `http://host/?pb=KEY&cid=[CID]&profit=1.50`
 
-The group is matched against the **whole path**, not just its first segment:
-`/promo` and `/promo/` reach the group `promo`, while `/promo/landing` does not
-match anything and falls through to the trash mode. Put everything else in the
-query string.
+The group is taken from the **first path segment**; anything after it is
+ignored. `/promo`, `/promo/` and `/promo/iphone-15-sale.html` all reach the
+group `promo`, so a link can be dressed up as a real page without changing where
+it routes. An unknown first segment falls through to the trash mode.
 
 ## Admin web interface
 

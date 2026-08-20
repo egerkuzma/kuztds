@@ -70,6 +70,12 @@
   `internal/store/firewall_ttl_test.go`, `internal/store/loglimit_test.go`,
   `internal/admin/logs_limit_test.go`. Все пять падают на прежнем коде.
 
+- **Изменение (2026-08-20):** группа теперь определяется по **первому сегменту
+  пути**, а не по пути целиком — `/promo/iphone-15-sale.html` попадает в `promo`
+  так же, как `/promo`. Сопоставление всего пути отправляло любую глубокую
+  ссылку в trash-режим (по умолчанию пустой 200), хотя README и ARCHITECTURE всё
+  это время обещали первый сегмент. `handler.go` + `routing_test.go`.
+
 ## Тесты (покрытие на 2026-08-20)
 Прогон: `go test ./...` (юнит) и `go test -tags=integration ./...` (с CH+Redis).
 `go vet ./...` — чисто. Команда покрытия: `go test -tags=integration ./... -cover`.
