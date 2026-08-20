@@ -133,8 +133,15 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 
 	rctx := r.Context()
 
-	// Group: by ID/alias (from api.id or the first path segment).
-	gid := strings.Trim(r.URL.Path, "/")
+	// Group: by ID/alias — from api.id, or from the FIRST segment of the request
+	// path. Everything after it is ignored, so "/promo", "/promo/" and
+	// "/promo/iphone-15-sale.html" all resolve to the group "promo".
+	//
+	// Matching the whole path instead would send every deep link to trash mode —
+	// an empty 200 by default, indistinguishable from nothing happening. TDS
+	// links are routinely dressed up as real pages, so the extra segments are
+	// decoration and must not change routing.
+	gid, _, _ := strings.Cut(strings.Trim(r.URL.Path, "/"), "/")
 	if apiMode {
 		gid = apiReq.ID
 	}
