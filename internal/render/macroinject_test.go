@@ -103,6 +103,28 @@ func TestExpand_TemplateNestingStillWorks(t *testing.T) {
 	}
 }
 
+// TestExpand_NestedScalarCannotEscapeDataDir is the case where the two halves
+// of the fix meet. Nesting is still allowed inside a RAND* argument, and a
+// nested scalar can carry visitor data — [PATH] is the Host header. The single
+// pass does not help here, because the argument came from the template.
+// underDir is what stops it, which is why it is not optional.
+func TestExpand_NestedScalarCannotEscapeDataDir(t *testing.T) {
+	root := t.TempDir()
+	data := filepath.Join(root, "data")
+	if err := os.Mkdir(data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "secret.dat"), []byte("TOP-SECRET-LINE\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// A visitor sending Host: ../secret would otherwise read root/secret.dat.
+	got := Expand("[RANDLINE-([PATH].dat)-1]", MacroDeps{DataDir: data, Path: "../secret"})
+	if got != "" {
+		t.Fatalf("nested [PATH] escaped DataDir: %q", got)
+	}
+}
+
 // TestExpand_UnknownBracketsSurvive guards the single-pass rewrite against
 // eating text it does not understand.
 func TestExpand_UnknownBracketsSurvive(t *testing.T) {

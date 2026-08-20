@@ -51,8 +51,12 @@ var (
 // [RANDLINE-(../...)] or forcing a huge allocation through [RANDSTR].
 //
 // Macros nested inside a RAND* argument still work, because the argument comes
-// from the template itself; only its scalar macros are expanded (see
-// expandScalars), and the visitor never gets a say in it.
+// from the template itself; only its scalar macros are expanded, never RAND*
+// ones (see expandScalars), so a visitor cannot introduce a macro.
+//
+// A visitor can still influence such an argument, though: a template that says
+// [RANDLINE-([PATH].dat)-1] puts the Host header into a file name. underDir is
+// what keeps that inside DataDir, and it is load-bearing, not belt-and-braces.
 func Expand(s string, d MacroDeps) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -83,17 +87,20 @@ func (d MacroDeps) macroAt(s string) (val string, n int) {
 			return m.val, len(m.name)
 		}
 	}
+	// Only the (…) arguments can hold a nested macro — the counts and the
+	// RANDNUM bounds are [0-9]+ in the patterns, so expanding scalars there
+	// would be dead code.
 	if g, n := matchRand(reRandNum, s); n > 0 {
-		return randNum(d.expandScalars(g[1]), d.expandScalars(g[2]), d.Rng), n
+		return randNum(g[1], g[2], d.Rng), n
 	}
 	if g, n := matchRand(reRandStr, s); n > 0 {
-		return randStr(d.expandScalars(g[1]), d.expandScalars(g[2]), d.Rng), n
+		return randStr(d.expandScalars(g[1]), g[2], d.Rng), n
 	}
 	if g, n := matchRand(reRandLine, s); n > 0 {
-		return d.randLine(d.expandScalars(g[1]), d.expandScalars(g[2]), g[3] == "/u"), n
+		return d.randLine(d.expandScalars(g[1]), g[2], g[3] == "/u"), n
 	}
 	if g, n := matchRand(reRandDfl, s); n > 0 {
-		return d.randDfl(d.expandScalars(g[1]), d.expandScalars(g[2]), g[3] == "/u"), n
+		return d.randDfl(d.expandScalars(g[1]), g[2], g[3] == "/u"), n
 	}
 	return "", 0
 }
@@ -248,6 +255,12 @@ func pickLines(lines []string, count int, unique bool, rng *rand.Rand) string {
 // underDir resolves rel against base and refuses anything that escapes base.
 // Without it "[RANDLINE-(../../etc/passwd)-1]" would read outside the data
 // directory and put the result straight into the visitor's redirect.
+//
+// The check is lexical: it works on the cleaned path, not on what the
+// filesystem resolves to. A symlink inside DataDir pointing outside it still
+// passes. That is deliberate — DataDir is operator-owned, and resolving every
+// path on the hot path costs a syscall per macro — but it means underDir bounds
+// the name, not the destination.
 func underDir(base, rel string) (string, bool) {
 	if base == "" || rel == "" {
 		return "", false
