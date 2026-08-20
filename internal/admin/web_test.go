@@ -36,9 +36,9 @@ func TestSPAServedViaHandler(t *testing.T) {
 	}
 }
 
-// TestSPAStructure — the markup contains the key elements of the new interface:
+// TestSPAStructure — the markup contains the key elements of the interface:
 // sidebar navigation with all tabs, the settings gear and the user block
-// in the top right corner, the collapsible group tree and the stream card.
+// in the top right corner, and the master–detail groups editor.
 func TestSPAStructure(t *testing.T) {
 	html := string(indexHTML)
 
@@ -55,11 +55,14 @@ func TestSPAStructure(t *testing.T) {
 	must(t, html, `class="userchip"`, "user chip")
 	must(t, html, `id="out"`, "logout button")
 
-	// Groups: collapsible tree (chevron) and streams.
+	// Groups: collapsible tree (chevron) on the left, one detail pane on the right.
 	must(t, html, `class="glist"`, "group tree")
 	must(t, html, `class="chev`, "group collapse chevron")
 	must(t, html, `class="snode`, "stream node in the tree")
-	must(t, html, `class="streamcard"`, "stream card")
+	must(t, html, `id="gpane"`, "detail pane")
+	must(t, html, `streamcard`, "stream card")
+	must(t, html, `class="phead"`, "sticky header of the detail pane")
+	must(t, html, `id="dirty"`, "unsaved-changes indicator")
 
 	// Logs: dropdown filters with checkboxes (multi-select), loaded from data.
 	must(t, html, `class="msel"`, "logs dropdown filter")
@@ -77,19 +80,45 @@ func TestSPAKeyFunctions(t *testing.T) {
 	html := string(indexHTML)
 	for _, fn := range []string{
 		"function app(", "function openTab(", "function groups(", "function streamForm(",
+		"function groupForm(",  // the group's own form — the other half of master–detail
+		"function renderTree(", // left pane
+		"function renderPane(", // right pane: exactly one form at a time
+		"function commit(",     // model <- currently mounted form
 		"function collectStream(", "function collectGroup(", "function saveAll(",
-		"function focusStream(", // focus/scroll to the stream on click
-		"scrollIntoView",        // the scroll itself
-		"function msel(",        // constructor of the logs dropdown filter
+		"function markDirty(", // unsaved-changes tracking
+		"function msel(",      // constructor of the logs dropdown filter
 		"function buildLogFilters(",
 	} {
 		must(t, html, fn, fn)
 	}
 }
 
+// TestGroupsEditorDoesNotScrollThePage pins the reason the editor was rebuilt.
+// The stream form used to render below the group form, so selecting a stream
+// pushed it off-screen and the code chased it with scrollIntoView(). Both forms
+// now share one pane that scrolls internally; if scrollIntoView reappears, the
+// old layout has crept back in.
+func TestGroupsEditorDoesNotScrollThePage(t *testing.T) {
+	html := string(indexHTML)
+	// Matches a real call (obj.scrollIntoView(...)), not the prose in the
+	// comment that explains why there is none.
+	mustNot(t, html, ".scrollIntoView(", "page-scrolling hack in the groups editor")
+	mustNot(t, html, "focusStream", "the scroll-chasing helper")
+	// The pane scrolls inside itself instead.
+	must(t, html, `.gpane{`, "detail pane style")
+	must(t, html, `overflow-y:auto`, "internal scrolling of the editor panes")
+}
+
 func must(t *testing.T, html, needle, what string) {
 	t.Helper()
 	if !strings.Contains(html, needle) {
 		t.Errorf("not found in SPA: %s (looked for %q)", what, needle)
+	}
+}
+
+func mustNot(t *testing.T, html, needle, what string) {
+	t.Helper()
+	if strings.Contains(html, needle) {
+		t.Errorf("must not be in the SPA: %s (found %q)", what, needle)
 	}
 }
