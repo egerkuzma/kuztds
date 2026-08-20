@@ -16,7 +16,7 @@ binary with an embedded admin panel.
 
 It is built for throughput and safety: IP lists and signatures live in memory
 (`O(log n)` lookups), logs and conversions go to **ClickHouse**, counters and
-sessions go to **Redis**, and the hot path never blocks on disk I/O.
+sessions go to **Redis**, and the response never waits for a log write.
 
 ![Dashboard](docs/img/dashboard.png)
 
@@ -158,7 +158,7 @@ HTTP request
   ├─ realip middleware  (trust XFF/CF only from trusted_proxies)
   ├─ api mode?  (?api=base64(JSON), checks KUZTDS_API_KEY)
   ├─ IP blacklist        → 403 if listed
-  ├─ resolve group by id/alias (first path segment); none → "trash" mode
+  ├─ resolve group by id/alias (the request path); none → "trash" mode
   ├─ anti-flood (Redis): N requests / IP / window
   ├─ detect device/OS/browser/brand ; geo (mmdb / CF-IPCountry) ; carrier (wap)
   ├─ uniqueness: cookie | Redis SETNX

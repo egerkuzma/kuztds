@@ -3,13 +3,19 @@
 # KuzTDS security model
 
 A normative document: requirements + what's already done (✅) and what's planned
-(⏳). Up to date as of 2026-06-07. The rest — in `TODO.md`.
+(⏳). Up to date as of 2026-08-20. The rest — in `TODO.md`.
 
 ## 1. Serialization and input
 - ✅ **No deserialization of untrusted data** — JSON only (`encoding/json`),
   decoded into a fixed struct.
 - ✅ Input IPs go through `netip.ParseAddr`; invalid ones never reach queries.
-- ✅ `?api=` mode — base64(**JSON**), access by the `KUZTDS_API_KEY` key.
+- ✅ `?api=` mode — base64(**JSON**), access by the `KUZTDS_API_KEY` key. The
+  key is compared in constant time (`security.EqualTokens`), like every other
+  secret here.
+- ✅ Values the engine wrote but the client hands back are re-validated, not
+  trusted: the `ztrot_*` rotator cookie is an index into the output-variant
+  list, and an out-of-range value restarts the cycle instead of indexing the
+  slice (`variantIndex` in `cmd/engine/main.go`).
 - ⏳ HMAC-SHA256 signing of packed `[ex]` parameters — NOT implemented; extra GET
   params are passed as-is into `[PAR-n]`.
 
@@ -71,7 +77,11 @@ A normative document: requirements + what's already done (✅) and what's planne
   the cron block).
 
 ## 8. Process
-- ✅ `go vet`, `go test` — green; `govulncheck` — clean (run manually).
+- ✅ CI (`.github/workflows/ci.yml`) runs `go build`, `go vet` and `go test`
+  on every push and pull request to `main`.
 - ✅ Dependencies pinned (`go.sum`); errors handled explicitly, structured logs
   (slog).
-- ⏳ CI pipeline (lint+test+vuln automatically), `golangci-lint` in the gate.
+- ⏳ `golangci-lint` and `govulncheck` in the gate — the `make lint` / `make vuln`
+  targets exist but are run by hand, CI does not call them yet.
+- ⏳ The `integration` and `uitest` tagged suites are not in CI either (they need
+  ClickHouse/Redis and node); run them locally before a release.

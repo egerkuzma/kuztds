@@ -97,6 +97,11 @@ go run ./cmd/admin
 - With extra params: `http://host/<id>?p1=...&p2=...` → macros `[PAR-1..5]`
 - Postback pixel: `http://host/?pb=KEY&cid=[CID]&profit=1.50`
 
+The group is matched against the **whole path**, not just its first segment:
+`/promo` and `/promo/` reach the group `promo`, while `/promo/landing` does not
+match anything and falls through to the trash mode. Put everything else in the
+query string.
+
 ## Admin web interface
 
 Shell: **left sidebar** (icon navigation), **top bar on the right** (period

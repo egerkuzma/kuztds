@@ -26,7 +26,7 @@ HTTP request
   │
   ├─ ipindex.Lookup(ip, ip_blacklist)        → blacklisted: 403
   │
-  ├─ group by id/alias (first path segment or api.id); none → trash mode
+  ├─ group by id/alias (the request path, or api.id); none → trash mode
   │
   ├─ anti-flood (Redis): N requests/IP per window
   │
@@ -71,9 +71,17 @@ specific stream; bot_redirect serves bots a separate output.
 
 ## Key principles
 1. **State in process memory** (IP indexes, config, signatures, geo), refreshed
-   in the background — no file reads per request.
+   in the background — routing decisions read no files.
 2. **Hot path free of extra blocking I/O**: logs async; counters in Redis;
    external calls (CURL/remote/PTR) with timeouts.
+
+   Four optional features are the exception and *do* touch the filesystem on
+   every request that uses them: `separation` re-reads and scans its `.dat`
+   (`separationOut`), `save_keys`/`save_keys_se` append a line (`appendKey`),
+   `save_ip` appends a crawler IP (`saveBotIP`, one write per IP per process),
+   and the `[RANDLINE]`/`[RANDDFL]` macros read a file or a directory
+   (`render/macros.go`). Enable them knowing they trade throughput for the
+   feature; everything else stays in memory.
 3. **Rules are data** (a list of predicates evaluated in a loop).
 4. **Atomic index swap** on hot-reload (`atomic.Pointer`).
 

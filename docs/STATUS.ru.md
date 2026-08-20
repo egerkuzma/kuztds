@@ -2,7 +2,7 @@
 
 # STATUS — где мы и как продолжить
 
-Снимок на 2026-06-07. Для деталей: `docs/USAGE.md`, `TODO.md`.
+Снимок на 2026-08-20. Для деталей: `docs/USAGE.md`, `TODO.md`.
 
 ## Готово (в `main`, тесты зелёные)
 - **Фазы 1–7**: ipindex (+hot-reload), realip, geo (mmdb/Nop) + detect
@@ -31,27 +31,64 @@
      (`ipListFiles()` в `handler.go`, вызывается в `main.go`) — раньше per-stream
      фильтр по IP молча не срабатывал, если файл не из стандартного набора.
 
-## Тесты (покрытие на 2026-06-07)
+- **Фикс (ревью кода, 2026-08-20):**
+  1. **Паника на подобранной cookie ротатора.** `ztrot_<group>_<stream>` пишет
+     движок, но возвращает её посетитель. Отрицательное значение (`-5`) давало
+     отрицательный индекс в списке вариантов `|||` и роняло запрос: проверялась
+     только верхняя граница. Индексы из cookie и из Redis-счётчика `evenly`
+     теперь проходят через `variantIndex()` (`main.go`), который на любом
+     значении вне диапазона начинает цикл заново.
+  2. **CSV-экспорт логов молча отдавал одну страницу.** `handleLogsExport`
+     просил 50000 строк, а `CH.Logs` резал всё больше 1000 обратно до 100.
+     Потолок стора теперь равен размеру экспорта (`maxLogRows`), а пагинация
+     интерактивного эндпоинта переехала в админский слой (`maxPageRows`) —
+     теперь оба лимита означают то, что написано (`clickhouse.go`, `admin.go`).
+  3. **Счётчики лимитов могли превращаться в вечный бан.** `Firewall` ставил TTL
+     только при положительном окне, поэтому включённый файрвол с `seconds: 0`
+     оставлял бессмертный ключ в Redis и блокировал IP навсегда. То же самое —
+     для лимита потока типа 2 без периода. Счётчики идут через `incrWithTTL()`,
+     который гарантирует expiry и удаляет ключ, если `EXPIRE` не прошёл
+     (`redis.go`).
+  4. **`save_ip` дописывал дубли до следующего hot-reload.** Дедуп шёл по
+     индексу в памяти, который обновляется раз в минуту, поэтому каждый хит с
+     того же IP краулера добавлял ещё строку в `ip_<se>.dat`. Множество на
+     уровне процесса (`savedBotIPs`) ограничивает это одной записью на IP
+     (`bots.go`).
+  5. Ключ `?api=` сравнивается через `security.EqualTokens`, а не `!=`
+     (`api.go`) — так же, как все остальные секреты в проекте.
+  6. `chance` разыгрывается через `hitPercent()`, а не повтором выражения
+     `rand.Intn(100)+1` вручную — того самого, чей off-by-one уже однажды
+     чинили в `api_mac` (`handler.go`).
+
+  Регресс-тесты: `cmd/engine/rotator_test.go`, `cmd/engine/savebotip_test.go`,
+  `internal/store/firewall_ttl_test.go`, `internal/store/loglimit_test.go`,
+  `internal/admin/logs_limit_test.go`. Все пять падают на прежнем коде.
+
+## Тесты (покрытие на 2026-08-20)
 Прогон: `go test ./...` (юнит) и `go test -tags=integration ./...` (с CH+Redis).
 `go vet ./...` — чисто. Команда покрытия: `go test -tags=integration ./... -cover`.
 
 | Пакет | Покрытие | Заметка |
 |-------|:--:|---|
 | internal/fetch | 96.9% | httptest + подмена `now` для TTL |
-| internal/security | 87.8% | |
+| internal/logbuf | 93.6% | |
+| internal/security | 84.3% | |
 | internal/ipindex | 83.7% | |
 | internal/geo | 82.6% | mmdb-тест |
 | internal/router | 81.9% | + регресс country/lang values-only |
-| internal/logbuf | 81.6% | |
 | internal/detect | 80.5% | |
+| internal/render | 80.5% | |
 | internal/config | 80.0% | |
-| internal/store | 77.0% | miniredis (Counters/sessions) + CH под `-tags=integration` |
-| internal/admin | 74.1% | login/CSRF/группы/списки/ключи/пароль/экспорт + file-сторы + SPA (web_test.go) |
+| internal/store | 77.0% * | miniredis (Counters/sessions) + CH под `-tags=integration` |
+| internal/admin | 74.7% | login/CSRF/группы/списки/ключи/пароль/экспорт + file-сторы + SPA (web_test.go) |
 | internal/server | 73.2% | |
-| internal/render | 76.8% | |
 | cmd/apiclient | 71.6% | round-trip с фейковым TDS (`newClientHandler`) |
-| cmd/engine | 67.1% | httptest-конвейер + хелперы + **e2e_test.go** (23 сквозных сценария: все типы редиректа, все макросы, боты, гео, фильтры, операторы, распределение, лимиты, фаервол, separation, расписание, chance, api-режим, матрица трафика) |
+| cmd/engine | 66.3% | httptest-конвейер + хелперы + **e2e_test.go** (23 сквозных сценария: все типы редиректа, все макросы, боты, гео, фильтры, операторы, распределение, лимиты, фаервол, separation, расписание, chance, api-режим, матрица трафика) |
 | cmd/admin | 0% | только `main()`-обвязка; логика в internal/admin |
+
+\* `internal/store` на 2026-08-20 не перемерялся: ClickHouse не был поднят, и
+тесты под `integration` скипаются (без них 32.9%). Значение 77.0% — последнее
+измерение с поднятым ClickHouse.
 
 Рефактор для тестируемости: обработчики горячего пути вынесены из замыканий
 `main()` в `cmd/engine/handler.go` (`engineDeps.root`) и `cmd/apiclient`

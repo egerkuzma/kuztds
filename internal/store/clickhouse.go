@@ -168,6 +168,28 @@ type LogFilter struct {
 	Limit, Offset        int
 }
 
+const (
+	// defaultLogRows — one page of the interactive log table.
+	defaultLogRows = 100
+	// maxLogRows bounds a single Logs call. The ceiling is the size of a CSV
+	// export, not of a page: the export legitimately asks for a whole period,
+	// and clamping it down to a page size silently truncated every export to
+	// defaultLogRows rows. Paginating the interactive endpoint is the admin
+	// layer's job (see maxPageRows there).
+	maxLogRows = 50000
+)
+
+// clampLogLimit bounds a requested row count to something the process can hold.
+func clampLogLimit(limit int) int {
+	if limit <= 0 {
+		return defaultLogRows
+	}
+	if limit > maxLogRows {
+		return maxLogRows
+	}
+	return limit
+}
+
 // LogRow — a log row for the table.
 type LogRow struct {
 	TS      time.Time `json:"ts"`
@@ -228,10 +250,7 @@ func (c *CH) Logs(ctx context.Context, f LogFilter) ([]LogRow, int64, error) {
 		return nil, 0, err
 	}
 
-	limit := f.Limit
-	if limit <= 0 || limit > 1000 {
-		limit = 100
-	}
+	limit := clampLogLimit(f.Limit)
 	q := "SELECT ts, group_name, stream_name, country, city, device, os, browser, brand, bot, uniq, ip, keyword, out" +
 		" FROM events WHERE " + where + " ORDER BY ts DESC LIMIT ? OFFSET ?"
 	rows, err := c.conn.Query(ctx, q, append(args, limit, f.Offset)...)
