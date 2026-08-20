@@ -65,7 +65,7 @@ not like a script.**
 - 🛡️ **Secure by default** — argon2id passwords, server-side sessions, CSRF,
   parameterized queries, trusted-proxy `X-Forwarded-For`, JSON-only input.
 - 🎛️ **Batteries included** — a polished, **embedded** admin panel (dashboard,
-  logs with data-driven filters, conversions, a group/stream form builder, `.dat`
+  logs with data-driven filters, conversions, a group/stream editor, `.dat`
   editor). No Node build, no separate web server.
 - 🧩 **One binary, optional deps** — ClickHouse and Redis are optional; the engine
   runs without them and simply skips the corresponding features.
@@ -120,7 +120,7 @@ not like a script.**
   group/source).
 - Logs with multi-select filters loaded from real data, IP search, CSV export,
   and country flags.
-- Conversions (postbacks), collected keywords, group/stream form builder, `.dat`
+- Conversions (postbacks), collected keywords, group/stream editor, `.dat`
   list editor, password change.
 
 ---
@@ -132,8 +132,8 @@ period), in-list search, country flags, CSV export, pagination:
 
 ![Logs](docs/img/logs.png)
 
-**Groups & streams** — collapsible group tree, stream form builder with tabs,
-live links the engine serves, and stream focus on click:
+**Groups & streams** — master–detail editor: collapsible group tree on the left,
+one form pane on the right, live links the engine serves:
 
 ![Groups and streams](docs/img/groups.png)
 
@@ -374,7 +374,7 @@ A group is reachable at `/<id>` (and at each alias). Example shape:
 ]
 ```
 
-You normally **edit groups in the admin UI** ("Groups" → form builder → "Save
+You normally **edit groups in the admin UI** ("Groups" → pick a group or stream → "Save
 all"); the engine caches groups at startup and reloads them on its reload
 interval. See `configs/groups.example.json` and `configs/test_groups.json`.
 
@@ -488,9 +488,11 @@ navigation, **top-right** period picker, settings gear, user, and log-out.
   IP field, humans/bots toggle, country flags, pagination, CSV export.
 - **Conversions** — postbacks and total profit for a period.
 - **Keywords** — collected keywords per group/date.
-- **Groups** — collapsible group→stream tree; a stream form builder with tabs
-  (Main · Devices · WAP · Geo · Filters · UA/OS/Brand · Schedule · Limit · Bots ·
-  Remote · API); clicking a stream scrolls to and highlights its form.
+- **Groups** — a master–detail editor: collapsible group→stream tree with search
+  on the left, and a pane on the right holding exactly one form — the group's, or
+  a stream's with tabs (Main · Devices · WAP · Geo · Filters · UA/OS/Brand ·
+  Schedule · Limit · Bots · Remote · API). Both panes scroll internally, so
+  picking a stream never moves the page. Unsaved-changes marker and `Ctrl`+`S`.
 - **Lists** — editor for `.dat` files (IP bases, WAP operators, signatures).
 - **Settings** (gear) — change the admin password.
 

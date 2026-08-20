@@ -113,13 +113,27 @@ checkboxes**: group/stream/country/device/OS/browser/brand — values are loaded
 from data for the period via `GET /api/logs/filters`, multiple can be checked →
 SQL `IN`; plus in-list search, IP field, humans/bots type, pagination, CSV
 export), **Conversions**, **Keywords** (view collected keywords), **Groups**
-(collapsible group→stream tree, stream form builder), **Lists** (`.dat` editor,
+(master–detail editor: group→stream tree + one form pane), **Lists** (`.dat` editor,
 incl. WAP operators). Settings (password change) — via the gear on the right.
 
-Groups: a tree on the left with **collapse/expand** (chevron per group); on
-**clicking a stream**, the form scrolls to it and highlights (stream focus).
+Groups — a **master–detail** editor. On the left, a collapsible group→stream
+tree (chevron per group) with a search box over group and stream names. On the
+right, a pane showing **exactly one form**: the group's, or the selected
+stream's. Both panes scroll inside themselves and the page does not scroll, so
+the form you pick always opens in the same place.
+
+Clicking a group opens the group form (settings, anti-flood, an overview table
+of its streams, and the links the engine serves). Clicking a stream — in the
+tree, or via "edit →" in that table — replaces the pane with the stream form;
+the back link in its header returns to the group.
+
 Stream form tabs: Main · Devices · WAP · Geo · Filters · UA/OS/Brand · Schedule ·
 Limit · Bots · Remote · API.
+
+Edits live in the browser until **Save all** (`Ctrl`/`Cmd`+`S` also works). An
+"unsaved changes" marker appears next to the button, and leaving the section or
+closing the tab asks for confirmation first. Empty and duplicate group IDs are
+caught before the request is sent.
 
 The UI is a single embedded file (`internal/admin/web/index.html`, `go:embed`).
 Tests: `internal/admin/web_test.go` (SPA serving + structural anchors + key

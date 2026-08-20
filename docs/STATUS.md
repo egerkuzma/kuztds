@@ -17,10 +17,16 @@ Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
 - **Block 6** — api client (`cmd/apiclient`) + `?api=` handling in the engine.
 - **Block 7** — CSV log export, sources (domains), per-group log cleanup,
   stream reordering ↑/↓.
-- **UI (redesign 2026-06-07)**: left sidebar navigation, top bar on the right
-  (period, Settings gear, user, log out), dark theme. Collapsible group tree;
-  clicking a stream — scroll + highlight (stream focus). Full stream builder.
-  Covered by tests (`web_test.go` + `-tags=uitest` for JS).
+- **UI (rebuilt 2026-08-20)**: left sidebar navigation, top bar on the right
+  (period, Settings gear, user, log out), dark theme. Groups is a **master–detail**
+  editor: collapsible tree with search on the left, and a pane on the right that
+  holds exactly one form — the group's or a stream's. Both panes scroll
+  internally, so selecting a stream never moves the page (the previous layout
+  stacked the stream card under the group form and chased it with
+  `scrollIntoView`). Unsaved-changes marker, leave/close guards, `Ctrl`/`Cmd`+`S`,
+  streams overview table with direct edit, ↑/↓ disabled at the ends.
+  Covered by tests (`web_test.go` + `-tags=uitest` for JS), including a guard
+  that a real `.scrollIntoView(` call does not come back.
 - **Fix**: country/lang/text filters also work when only `values` is set (no
   `raw`) — `router.go: cfgd()/orJoin()`.
 - **Fix (found by e2e tests, 2026-06-07):**
