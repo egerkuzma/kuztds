@@ -315,9 +315,32 @@ func (s *Server) logFilter(r *http.Request) store.LogFilter {
 		IP:         q.Get("ip"),
 		BotsOnly:   q.Get("bots") == "1",
 		HumansOnly: q.Get("humans") == "1",
-		Limit:      atoiDef(q.Get("limit"), 100),
-		Offset:     atoiDef(q.Get("offset"), 0),
+		Limit:      clampPage(atoiDef(q.Get("limit"), defaultPageRows)),
+		Offset:     max(atoiDef(q.Get("offset"), 0), 0),
 	}
+}
+
+const (
+	// defaultPageRows — one page of the log table.
+	defaultPageRows = 100
+	// maxPageRows bounds the interactive log endpoint. It is paginated, so a
+	// caller must not be able to turn one request into a full-table dump by
+	// asking for a huge limit; whole-period reads go through the CSV export.
+	maxPageRows = 1000
+	// exportRows — how many rows the CSV export pulls for the selected period.
+	// The store accepts this as-is (see store.maxLogRows).
+	exportRows = 50000
+)
+
+// clampPage bounds a page size requested by the client.
+func clampPage(n int) int {
+	if n <= 0 {
+		return defaultPageRows
+	}
+	if n > maxPageRows {
+		return maxPageRows
+	}
+	return n
 }
 
 // csvVals splits "a,b,c" into a slice of non-empty trimmed values.
@@ -381,7 +404,7 @@ func (s *Server) handleLogsExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := s.logFilter(r)
-	f.Limit, f.Offset = 50000, 0
+	f.Limit, f.Offset = exportRows, 0
 	rows, _, err := s.cfg.Stats.Logs(r.Context(), f)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "logs error")

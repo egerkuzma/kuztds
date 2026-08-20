@@ -16,7 +16,7 @@ binary with an embedded admin panel.
 
 It is built for throughput and safety: IP lists and signatures live in memory
 (`O(log n)` lookups), logs and conversions go to **ClickHouse**, counters and
-sessions go to **Redis**, and the hot path never blocks on disk I/O.
+sessions go to **Redis**, and the response never waits for a log write.
 
 ![Dashboard](docs/img/dashboard.png)
 
@@ -65,7 +65,7 @@ not like a script.**
 - 🛡️ **Secure by default** — argon2id passwords, server-side sessions, CSRF,
   parameterized queries, trusted-proxy `X-Forwarded-For`, JSON-only input.
 - 🎛️ **Batteries included** — a polished, **embedded** admin panel (dashboard,
-  logs with data-driven filters, conversions, a group/stream form builder, `.dat`
+  logs with data-driven filters, conversions, a group/stream editor, `.dat`
   editor). No Node build, no separate web server.
 - 🧩 **One binary, optional deps** — ClickHouse and Redis are optional; the engine
   runs without them and simply skips the corresponding features.
@@ -120,7 +120,7 @@ not like a script.**
   group/source).
 - Logs with multi-select filters loaded from real data, IP search, CSV export,
   and country flags.
-- Conversions (postbacks), collected keywords, group/stream form builder, `.dat`
+- Conversions (postbacks), collected keywords, group/stream editor, `.dat`
   list editor, password change.
 
 ---
@@ -132,10 +132,16 @@ period), in-list search, country flags, CSV export, pagination:
 
 ![Logs](docs/img/logs.png)
 
-**Groups & streams** — collapsible group tree, stream form builder with tabs,
-live links the engine serves, and stream focus on click:
+**Groups & streams** — master–detail editor. Selecting a stream in the tree
+swaps the right pane in place; both panes scroll on their own, so the page never
+moves and the form always opens at the same spot:
 
-![Groups and streams](docs/img/groups.png)
+![Stream editor](docs/img/groups.png)
+
+Selecting the group itself shows the group form — settings, anti-flood, an
+overview of its streams and the live links the engine serves:
+
+![Group form](docs/img/group-form.png)
 
 ---
 
@@ -158,7 +164,7 @@ HTTP request
   ├─ realip middleware  (trust XFF/CF only from trusted_proxies)
   ├─ api mode?  (?api=base64(JSON), checks KUZTDS_API_KEY)
   ├─ IP blacklist        → 403 if listed
-  ├─ resolve group by id/alias (first path segment); none → "trash" mode
+  ├─ resolve group by id/alias (the request path); none → "trash" mode
   ├─ anti-flood (Redis): N requests / IP / window
   ├─ detect device/OS/browser/brand ; geo (mmdb / CF-IPCountry) ; carrier (wap)
   ├─ uniqueness: cookie | Redis SETNX
@@ -374,7 +380,7 @@ A group is reachable at `/<id>` (and at each alias). Example shape:
 ]
 ```
 
-You normally **edit groups in the admin UI** ("Groups" → form builder → "Save
+You normally **edit groups in the admin UI** ("Groups" → pick a group or stream → "Save
 all"); the engine caches groups at startup and reloads them on its reload
 interval. See `configs/groups.example.json` and `configs/test_groups.json`.
 
@@ -488,9 +494,11 @@ navigation, **top-right** period picker, settings gear, user, and log-out.
   IP field, humans/bots toggle, country flags, pagination, CSV export.
 - **Conversions** — postbacks and total profit for a period.
 - **Keywords** — collected keywords per group/date.
-- **Groups** — collapsible group→stream tree; a stream form builder with tabs
-  (Main · Devices · WAP · Geo · Filters · UA/OS/Brand · Schedule · Limit · Bots ·
-  Remote · API); clicking a stream scrolls to and highlights its form.
+- **Groups** — a master–detail editor: collapsible group→stream tree with search
+  on the left, and a pane on the right holding exactly one form — the group's, or
+  a stream's with tabs (Main · Devices · WAP · Geo · Filters · UA/OS/Brand ·
+  Schedule · Limit · Bots · Remote · API). Both panes scroll internally, so
+  picking a stream never moves the page. Unsaved-changes marker and `Ctrl`+`S`.
 - **Lists** — editor for `.dat` files (IP bases, WAP operators, signatures).
 - **Settings** (gear) — change the admin password.
 

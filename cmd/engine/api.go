@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+
+	"github.com/egerkuzma/kuztds/internal/security"
 )
 
 // apiRequest — data from an API client as base64(JSON).
@@ -34,7 +36,10 @@ func parseAPIRequest(param, key string) (*apiRequest, bool) {
 	if json.Unmarshal(raw, &req) != nil {
 		return nil, false
 	}
-	if key == "" || req.KeyAPI != key {
+	// Constant-time compare: the key travels in a request parameter an
+	// unauthenticated caller controls, so it is compared like every other
+	// secret in this codebase (see security.EqualTokens).
+	if key == "" || !security.EqualTokens(req.KeyAPI, key) {
 		return nil, false
 	}
 	return &req, true

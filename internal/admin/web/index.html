@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KuzTDS admin</title>
 <style>
   :root{
-    --bg:#0a0e16;--bg2:#0d1320;--panel:#10172480;--panel-solid:#111a2b;--panel2:#16203200;
-    --card:#121b2c;--line:#222d42;--line2:#1a2335;
+    --bg:#0a0e16;--panel-solid:#111a2b;--card:#121b2c;--line:#222d42;--line2:#1a2335;
     --fg:#e8eef7;--mut:#7e8ca3;--mut2:#5d6b82;
     --acc:#5b8cff;--acc2:#7c5cff;--acc-soft:#5b8cff22;
     --ok:#34d399;--bot:#fbbf24;--red:#fb7185;
     --shadow:0 8px 30px -12px rgba(0,0,0,.6);
     --r:14px;--r-sm:10px;
+    --top:67px;              /* topbar height — the editor locks its height to it */
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -30,24 +30,31 @@
 
   button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#1a2540;color:var(--fg);
     padding:9px 15px;border-radius:var(--r-sm);transition:.15s;display:inline-flex;align-items:center;gap:7px}
-  button:hover{border-color:#33446b;background:#1f2c4d;transform:translateY(-1px)}
-  button:active{transform:translateY(0)}
+  button:hover{border-color:#33446b;background:#1f2c4d}
   button.primary{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;color:#fff;font-weight:600;
     box-shadow:0 6px 18px -8px var(--acc)}
   button.primary:hover{filter:brightness(1.08)}
   button.ghost{background:transparent;border-color:transparent;color:var(--mut)}
   button.ghost:hover{color:var(--fg);background:#ffffff0a}
   button.danger:hover{border-color:var(--red);color:var(--red)}
+  button:disabled{opacity:.45;cursor:default}
+  button:disabled:hover{background:#1a2540;border-color:var(--line)}
   select,input,textarea{font:inherit;background:#0b1220;color:var(--fg);border:1px solid var(--line);
     border-radius:var(--r-sm);padding:9px 11px;transition:.15s;outline:none}
   select:focus,input:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
   textarea{resize:vertical}
   svg.ic{width:18px;height:18px;flex:none;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .spacer{flex:1}
+  .muted{color:var(--mut)} .err{color:var(--red)} .ok{color:var(--ok)}
+  .row{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin:26px 0 12px;font-weight:700}
+  .panel{background:var(--panel-solid);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
+  .state{color:var(--mut);padding:22px;text-align:center;font-size:13.5px}
 
   /* ---------- LAYOUT ---------- */
   .layout{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
   .sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px;
-    padding:20px 14px;border-right:1px solid var(--line2);background:linear-gradient(180deg,#0d1424,#0a0f1b);backdrop-filter:blur(8px)}
+    padding:20px 14px;border-right:1px solid var(--line2);background:linear-gradient(180deg,#0d1424,#0a0f1b)}
   .brand{display:flex;align-items:center;gap:11px;padding:6px 10px 18px;margin-bottom:6px}
   .brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));
     display:grid;place-items:center;font-weight:800;color:#fff;font-size:15px;box-shadow:0 8px 20px -8px var(--acc)}
@@ -55,7 +62,7 @@
   .brand .sub{display:block;font-size:11px;color:var(--mut2);font-weight:400;letter-spacing:.5px}
   .navbtn{justify-content:flex-start;width:100%;background:transparent;border:1px solid transparent;color:var(--mut);
     padding:10px 12px;border-radius:var(--r-sm);font-weight:500}
-  .navbtn:hover{background:#ffffff08;color:var(--fg);transform:none}
+  .navbtn:hover{background:#ffffff08;color:var(--fg)}
   .navbtn.active{background:var(--acc-soft);color:#fff;border-color:#2c3e6b}
   .navbtn.active svg{stroke:var(--acc)}
   .nav-cap{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut2);padding:14px 12px 6px;font-weight:700}
@@ -63,11 +70,8 @@
 
   .content{display:flex;flex-direction:column;min-width:0}
   .topbar{position:sticky;top:0;z-index:8;display:flex;align-items:center;gap:14px;
-    padding:14px 26px;border-bottom:1px solid var(--line2);
-    background:#0a0f1bcc;backdrop-filter:blur(12px)}
+    padding:14px 26px;border-bottom:1px solid var(--line2);background:#0a0f1bcc;backdrop-filter:blur(12px)}
   .topbar h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
-  .topbar .crumb{color:var(--mut2);font-size:13px}
-  .spacer{flex:1}
   .iconbtn{width:38px;height:38px;padding:0;justify-content:center;border-radius:10px;background:#11192b;color:var(--mut)}
   .iconbtn:hover{color:var(--fg)}
   .iconbtn.active{background:var(--acc-soft);color:#fff;border-color:#2c3e6b}
@@ -76,6 +80,10 @@
     display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;text-transform:uppercase}
   .userchip .nm{font-size:13px;color:var(--fg)}
   main{padding:26px;max-width:1240px;width:100%;margin:0 auto;animation:fade .25s ease}
+  /* The groups editor locks itself to the viewport and scrolls inside its own
+     panes, so selecting a stream never moves the page. */
+  main.locked{max-width:none;height:calc(100vh - var(--top));display:flex;flex-direction:column;
+    overflow:hidden;padding-bottom:20px;animation:none}
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
   /* ---------- DASHBOARD ---------- */
@@ -88,8 +96,6 @@
   .card.uniq .v{color:var(--ok)} .card.bot .v{color:var(--bot)}
   .card .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.8px;margin-top:6px;font-weight:600}
   .card .ico{position:absolute;top:16px;right:16px;color:var(--mut2);opacity:.5}
-  h2{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin:26px 0 12px;font-weight:700}
-  .panel{background:var(--panel-solid);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   .bars div{display:flex;align-items:center;gap:10px;margin:7px 0}
   .bars .lbl{width:120px;color:var(--mut);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -98,11 +104,11 @@
   canvas{width:100%;height:260px;display:block}
 
   /* ---------- TABLES ---------- */
+  .tw{overflow-x:auto;border-radius:var(--r)}
   table{width:100%;border-collapse:collapse;background:var(--panel-solid);border:1px solid var(--line);
     border-radius:var(--r);overflow:hidden;font-size:13px;box-shadow:var(--shadow)}
   th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line2);white-space:nowrap}
   th{color:var(--mut);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;background:#0c1422}
-  tbody tr{transition:.1s}
   tbody tr:hover{background:#ffffff06}
   tr:last-child td{border-bottom:none}
   td.ell{max-width:240px;overflow:hidden;text-overflow:ellipsis}
@@ -133,8 +139,6 @@
   .msel-list input{width:16px;height:16px;accent-color:var(--acc);flex:none}
   .msel-empty{color:var(--mut2);font-size:12px;padding:6px 7px}
   textarea.code{width:100%;min-height:440px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;white-space:pre;tab-size:2}
-  .muted{color:var(--mut)} .err{color:var(--red)} .ok{color:var(--ok)}
-  .row{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 
   /* ---------- LOGIN ---------- */
   .login-wrap{display:grid;place-items:center;min-height:100vh}
@@ -144,63 +148,86 @@
   .login input{width:100%;margin-bottom:13px;padding:11px 13px}
   .login button{width:100%;justify-content:center;padding:11px}
 
-  /* ---------- GROUPS EDITOR ---------- */
-  .ed{display:grid;grid-template-columns:268px 1fr;gap:20px;align-items:start}
-  .glist{display:flex;flex-direction:column;gap:3px;position:sticky;top:88px;
+  /* ---------- GROUPS EDITOR (master–detail) ---------- */
+  .gbar{display:flex;align-items:center;gap:10px;flex:none;margin-bottom:14px;flex-wrap:wrap}
+  .dirty{display:none;align-items:center;gap:7px;font-size:12.5px;color:var(--bot)}
+  .dirty.on{display:inline-flex}
+  .dirty .d{width:7px;height:7px;border-radius:50%;background:var(--bot);box-shadow:0 0 8px var(--bot)}
+  .ged{flex:1;min-height:0;display:grid;grid-template-columns:292px 1fr;gap:16px;align-items:stretch}
+
+  /* left: the tree, scrolls on its own */
+  .glist{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
     background:var(--panel-solid);border:1px solid var(--line);border-radius:var(--r);padding:10px;box-shadow:var(--shadow)}
+  /* stays put while the tree scrolls under it */
+  .gsearch{position:sticky;top:0;z-index:2;flex:none;width:100%;margin-bottom:8px;padding:8px 10px;font-size:13px;
+    background:#0b1220;box-shadow:0 6px 10px -8px #000}
+  #gtree{display:flex;flex-direction:column;gap:2px}
   .glist .gline{display:flex;align-items:center;gap:2px}
   .glist .chev{cursor:pointer;width:24px;height:30px;flex:none;display:grid;place-items:center;color:var(--mut);
     user-select:none;border-radius:7px;transition:.15s}
   .glist .chev:hover{background:#ffffff0a;color:var(--fg)}
   .glist .chev svg{width:14px;height:14px;transition:transform .18s}
   .glist .chev.open svg{transform:rotate(90deg)}
-  .glist .gnode{flex:1;justify-content:flex-start;text-align:left;background:transparent;border:1px solid transparent;
+  .glist .gnode{flex:1;min-width:0;justify-content:flex-start;text-align:left;background:transparent;border:1px solid transparent;
     color:var(--fg);padding:8px 10px;border-radius:8px;font-weight:600;font-size:13.5px;gap:8px}
-  .glist .gnode:hover{background:#ffffff08;transform:none}
+  .glist .gnode:hover{background:#ffffff08}
   .glist .gnode.active{background:var(--acc-soft);border-color:#2c3e6b}
+  .glist .gnode .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .glist .gnode .cnt{margin-left:auto;font-size:11px;color:var(--mut2);font-weight:600;flex:none}
   .glist .subtree{display:flex;flex-direction:column;gap:2px;margin:2px 0 6px 16px;
     border-left:1px solid var(--line);padding-left:8px}
   .glist .snode{justify-content:flex-start;text-align:left;font-size:13px;color:var(--mut);padding:7px 10px;
-    background:transparent;border:1px solid transparent;border-radius:7px;gap:7px}
-  .glist .snode:hover{background:#ffffff08;color:var(--fg);transform:none}
+    background:transparent;border:1px solid transparent;border-radius:7px;gap:7px;min-width:0}
+  .glist .snode .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .glist .snode:hover{background:#ffffff08;color:var(--fg)}
   .glist .snode.active{background:#1b2742;border-color:#2c3e6b;color:#fff}
   .glist .snode.add{color:var(--acc)}
+  .glist .none{color:var(--mut2);font-size:12.5px;padding:10px 8px;text-align:center}
   .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mut2)}
   .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 
-  .ghead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-  .ghead .chev{cursor:pointer;display:grid;place-items:center;width:30px;height:30px;border-radius:8px;color:var(--mut)}
-  .ghead .chev:hover{background:#ffffff0a;color:var(--fg)}
-  .ghead .chev svg{transition:transform .18s} .ghead .chev.open svg{transform:rotate(90deg)}
-  .gtitle{font-size:16px;font-weight:700}
-  .gsum{color:var(--mut);font-size:12.5px}
-  .lnk{margin:5px 0;font-size:13px;word-break:break-all}
-  .lnk code{background:#0b1220;padding:3px 7px;border-radius:6px;border:1px solid var(--line2)}
+  /* right: exactly ONE form — group or stream. Same position every time. */
+  .gpane{min-height:0;overflow-y:auto;background:var(--panel-solid);border:1px solid var(--line);
+    border-radius:var(--r);box-shadow:var(--shadow)}
+  .phead{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+    padding:15px 20px;border-bottom:1px solid var(--line2);background:#101a2bf2;backdrop-filter:blur(8px)}
+  .phead .crumb{font-size:12px;color:var(--mut2)}
+  .phead .crumb b{color:var(--fg);font-weight:600}
+  .phead .ttl{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .phead .sub{font-size:12.5px;color:var(--mut)}
+  .pbody{padding:20px}
+  .backlink{background:transparent;border-color:transparent;color:var(--mut);padding:6px 9px;font-size:12.5px}
+  .backlink:hover{color:var(--fg);background:#ffffff0a}
 
-  .ftabs{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 18px;border-bottom:1px solid var(--line2);padding-bottom:10px}
+  .ftabs{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 18px;border-bottom:1px solid var(--line2);padding-bottom:10px}
   .ftabs button{background:transparent;border:1px solid transparent;color:var(--mut);padding:7px 13px;border-radius:8px;font-size:13px}
-  .ftabs button:hover{color:var(--fg);background:#ffffff08;transform:none}
+  .ftabs button:hover{color:var(--fg);background:#ffffff08}
   .ftabs button.active{background:var(--acc-soft);color:#fff;border-color:#2c3e6b}
-  .sec{display:none} .sec.active{display:block;animation:fade .2s ease}
+  .sec{display:none} .sec.active{display:block;animation:fade .18s ease}
   .fld{margin-bottom:14px} .fld>label{display:block;font-size:12px;color:var(--mut);margin-bottom:6px}
-  .fld input[type=text],.fld input[type=number],.fld select,.fld textarea{width:100%}
+  .fld input[type=text],.fld input[type=number],.fld input[type=password],.fld select,.fld textarea{width:100%}
   .fld textarea{min-height:80px}
-  .flt{display:grid;grid-template-columns:1fr 160px;gap:12px;align-items:start;margin-bottom:16px}
+  .hint{font-size:11.5px;color:var(--mut2);margin-top:5px}
+  .flt{display:grid;grid-template-columns:1fr 170px;gap:12px;align-items:start;margin-bottom:16px}
   .flt textarea{min-height:58px}
   .chk{display:flex;align-items:center;gap:9px;margin:10px 0}
-  .chk input{width:17px;height:17px;accent-color:var(--acc)}
-  .oprow{display:grid;grid-template-columns:1fr 160px 40px;gap:9px;margin-bottom:7px}
+  .chk input{width:17px;height:17px;accent-color:var(--acc);flex:none}
+  .oprow{display:grid;grid-template-columns:1fr 170px 40px;gap:9px;margin-bottom:7px}
   .days{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
   .days label{display:flex;gap:6px;align-items:center;color:var(--fg)}
   .note{font-size:12px;color:var(--mut);border-left:2px solid var(--line);padding-left:12px;margin-top:18px}
   .g2c{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .streamcard{background:var(--panel-solid);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-top:18px;box-shadow:var(--shadow);scroll-margin-top:88px}
-  .streamcard.flash{animation:flash 1s ease}
-  @keyframes flash{0%{box-shadow:0 0 0 0 var(--acc-soft),var(--shadow);border-color:var(--acc)}100%{box-shadow:var(--shadow);border-color:var(--line)}}
+  .streamcard{display:block}
+  .lnk{margin:5px 0;font-size:13px;word-break:break-all}
+  .lnk code{background:#0b1220;padding:3px 7px;border-radius:6px;border:1px solid var(--line2)}
+  .empty-pane{display:grid;place-items:center;height:100%;color:var(--mut2);text-align:center;padding:40px}
 
-  @media(max-width:880px){
-    .layout{grid-template-columns:1fr} .sidebar{position:fixed;left:-260px;z-index:30;transition:.2s} .sidebar.open{left:0}
-    .ed{grid-template-columns:1fr} .glist{position:static} .cards{grid-template-columns:1fr} .g2c,.grid2{grid-template-columns:1fr}
+  @media(max-width:980px){
+    .layout{grid-template-columns:1fr} .sidebar{display:none}
+    main.locked{height:auto;overflow:visible}
+    .ged{grid-template-columns:1fr;height:auto}
+    .glist,.gpane{max-height:none;overflow:visible}
+    .cards{grid-template-columns:1fr} .g2c,.grid2,.flt{grid-template-columns:1fr}
   }
 </style>
 </head>
@@ -211,6 +238,8 @@ const api=(p,o={})=>fetch(p,{credentials:'same-origin',...o});
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // country flag (emoji) by 2-letter ISO code: ru → 🇷🇺. Empty otherwise.
 const flag=(cc)=>{cc=String(cc||'').trim().toUpperCase();if(!/^[A-Z]{2}$/.test(cc))return '';return String.fromCodePoint(...[...cc].map(c=>0x1F1E6+c.charCodeAt(0)-65))};
+const q=(s)=>document.querySelector(s);
+const qa=(s)=>Array.from(document.querySelectorAll(s));
 let CSRF='', TAB='dashboard', HOURS=24, ENGINE='', USER='';
 
 // SVG icons (by key)
@@ -226,11 +255,13 @@ const IC={
   visits:'<path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/>',
   uniq:'<path d="M20 6L9 17l-5-5"/>',
   botico:'<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/>',
+  back:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
 };
 const icon=(k)=>`<svg class="ic" viewBox="0 0 24 24">${IC[k]||''}</svg>`;
 const TITLES={dashboard:'Dashboard',logs:'Logs',postbacks:'Conversions',groups:'Groups',lists:'Lists',keys:'Keywords',settings:'Settings'};
 
 function rangeQS(){const to=new Date(),from=new Date(to-HOURS*3600*1000);return `from=${from.toISOString()}&to=${to.toISOString()}`}
+const stateHTML=(msg,cls)=>`<div class="state ${cls||''}">${esc(msg)}</div>`;
 
 async function boot(){
   const r=await api('/api/me');
@@ -242,17 +273,25 @@ function loginView(msg=''){
     <input id="l" placeholder="login" autocomplete="username">
     <input id="p" type="password" placeholder="password" autocomplete="current-password">
     <button class="primary" id="go">Sign in</button>
-    <div class="err" style="text-align:center;min-height:18px;margin-top:10px">${msg}</div></div></div>`);
+    <div class="err" style="text-align:center;min-height:18px;margin-top:10px">${esc(msg)}</div></div></div>`);
   el.querySelector('#go').onclick=doLogin;
+  el.querySelector('#l').onkeydown=e=>{if(e.key==='Enter')doLogin()};
   el.querySelector('#p').onkeydown=e=>{if(e.key==='Enter')doLogin()};
   render(el);
+  setTimeout(()=>{const l=q('#l');if(l)l.focus()},0);
 }
 async function doLogin(){
-  const login=document.querySelector('#l').value,password=document.querySelector('#p').value;
+  const login=q('#l').value,password=q('#p').value;
   const r=await api('/api/login',{method:'POST',body:JSON.stringify({login,password})});
-  if(r.ok)boot();else loginView('Invalid login or password');
+  if(r.ok)boot();
+  else if(r.status===429)loginView('Too many attempts, try again later');
+  else loginView('Invalid login or password');
 }
-async function logout(){await api('/api/logout',{method:'POST',headers:{'X-CSRF-Token':CSRF}});loginView()}
+async function logout(){
+  if(!confirmLeave())return;
+  await api('/api/logout',{method:'POST',headers:{'X-CSRF-Token':CSRF}});
+  DIRTY=false;loginView();
+}
 
 function app(user){
   const navItem=(t)=>`<button class="navbtn" data-t="${t}">${icon(t)}<span>${TITLES[t]}</span></button>`;
@@ -285,13 +324,19 @@ function app(user){
   openTab(TAB);
 }
 function openTab(t){
+  // Leaving the editor with pending edits would drop them silently.
+  if(TAB==='groups'&&t!=='groups'){
+    if(!confirmLeave())return;
+    clearDirty(); // the edits are dropped: groups() refetches on the way back
+  }
   TAB=t;
-  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.t===t));
-  const gear=document.querySelector('#gear'); if(gear)gear.classList.toggle('active',t==='settings');
-  const pt=document.querySelector('#ptitle'); if(pt)pt.textContent=TITLES[t]||'';
+  qa('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.t===t));
+  const gear=q('#gear'); if(gear)gear.classList.toggle('active',t==='settings');
+  const pt=q('#ptitle'); if(pt)pt.textContent=TITLES[t]||'';
+  const m=q('#view'); if(m)m.classList.toggle('locked',t==='groups');
   ({dashboard,logs,postbacks,groups,lists,keys,settings}[t])();
 }
-const view=()=>document.querySelector('#view');
+const view=()=>q('#view');
 
 /* ---------- SETTINGS (change password) ---------- */
 function settings(){
@@ -303,9 +348,9 @@ function settings(){
       <div class="row"><button class="primary" id="pw-save">Change password</button><span id="pw-msg" class="muted"></span></div>
       <p class="muted" style="margin-bottom:0">The argon2id hash is saved to <code>KUZTDS_ADMIN_PASSWORD_FILE</code>. If the variable is not set, the change applies only until restart.</p>
     </div>`;
-  document.querySelector('#pw-save').onclick=async()=>{
-    const o=document.querySelector('#pw-old').value,n=document.querySelector('#pw-new').value,n2=document.querySelector('#pw-new2').value;
-    const msg=document.querySelector('#pw-msg');
+  q('#pw-save').onclick=async()=>{
+    const o=q('#pw-old').value,n=q('#pw-new').value,n2=q('#pw-new2').value;
+    const msg=q('#pw-msg');
     if(n!==n2){msg.innerHTML='<span class="err">passwords do not match</span>';return}
     const r=await api('/api/password',{method:'POST',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify({old:o,new:n})});
     const j=await r.json().catch(()=>({}));
@@ -316,7 +361,7 @@ function settings(){
 
 /* ---------- DASHBOARD ---------- */
 async function dashboard(){
-  view().innerHTML='<div class="muted">loading…</div>';
+  view().innerHTML=stateHTML('loading…');
   const [sum,ts]=await Promise.all([
     api('/api/stats/summary?'+rangeQS()).then(r=>r.json()).catch(()=>null),
     api('/api/stats/timeseries?'+rangeQS()+'&step='+(HOURS>48?86400:3600)).then(r=>r.json()).catch(()=>[]),
@@ -341,18 +386,19 @@ async function dashboard(){
       <div><h2>Groups</h2><div id="bd-group" class="panel bars"></div></div>
       <div><h2>Sources (domains)</h2><div id="bd-domain" class="panel bars"></div></div>
     </div>`;
-  drawChart(document.querySelector('#chart'),ts||[]);
+  drawChart(q('#chart'),ts||[]);
   ['country','device','os','browser','brand','group','domain'].forEach(loadBreakdown);
 }
 function cardHTML(v,l,c,ic){return `<div class="card ${c}"><div class="ico">${icon(ic)}</div><div class="v">${(v||0).toLocaleString('en-US')}</div><div class="l">${l}</div></div>`}
 async function loadBreakdown(dim){
-  const box=document.querySelector('#bd-'+dim); if(!box)return;
+  const box=q('#bd-'+dim); if(!box)return;
   const kv=await api(`/api/stats/breakdown?dim=${dim}&limit=8&`+rangeQS()).then(r=>r.json()).catch(()=>[]);
   if(!kv||!kv.length){box.innerHTML='<span class="muted">no data</span>';return}
   const max=Math.max(...kv.map(x=>x.count));
   box.innerHTML=kv.map(x=>`<div><span class="lbl">${esc(x.key||'—')}</span><span class="bar" style="width:${Math.round(x.count/max*180)}px"></span><span class="n">${x.count}</span></div>`).join('');
 }
 function drawChart(cv,pts){
+  if(!cv)return;
   const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=260;
   cv.width=W*dpr; cv.height=H*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr);
   g.clearRect(0,0,W,H);
@@ -376,11 +422,12 @@ function drawChart(cv,pts){
 /* ---------- LOGS ---------- */
 let logOffset=0, LOGF={}, LOGVALS={};
 const LOGDIMS=[['group','Group'],['stream','Stream'],['country','Country'],['device','Device'],['os','OS'],['browser','Browser'],['brand','Brand']];
+const LOGPAGE=100;
 function logQS(){
   const qs=new URLSearchParams();
   LOGDIMS.forEach(([k])=>{const v=[...(LOGF[k]||[])];if(v.length)qs.set(k,v.join(','))});
-  const ip=document.querySelector('#f-ip');if(ip&&ip.value.trim())qs.set('ip',ip.value.trim());
-  const bot=document.querySelector('#f-bot');if(bot&&bot.value)qs.set(bot.value,'1');
+  const ip=q('#f-ip');if(ip&&ip.value.trim())qs.set('ip',ip.value.trim());
+  const bot=q('#f-bot');if(bot&&bot.value)qs.set(bot.value,'1');
   return qs;
 }
 async function logs(){
@@ -395,30 +442,30 @@ async function logs(){
       <div class="spacer"></div>
       <button id="export">Export CSV</button>
     </div>
-    <div id="logwrap" class="muted">loading…</div>
+    <div id="logwrap">${stateHTML('loading…')}</div>
     <div class="row" style="margin-top:14px">
       <button id="prev">← prev</button><span id="pageinfo" class="muted"></span><button id="next">next →</button>
     </div>`;
-  document.querySelector('#apply').onclick=()=>{logOffset=0;loadLogs()};
-  document.querySelector('#reset').onclick=()=>{LOGDIMS.forEach(([k])=>LOGF[k].clear());document.querySelector('#f-ip').value='';document.querySelector('#f-bot').value='';buildLogFilters();logOffset=0;loadLogs()};
-  document.querySelector('#f-bot').onchange=()=>{logOffset=0;loadLogs()};
-  document.querySelector('#f-ip').onkeydown=e=>{if(e.key==='Enter'){logOffset=0;loadLogs()}};
-  document.querySelector('#export').onclick=()=>window.open('/api/logs/export?'+logQS()+'&'+rangeQS(),'_blank');
-  document.querySelector('#prev').onclick=()=>{logOffset=Math.max(0,logOffset-100);loadLogs()};
-  document.querySelector('#next').onclick=()=>{logOffset+=100;loadLogs()};
+  q('#apply').onclick=()=>{logOffset=0;loadLogs()};
+  q('#reset').onclick=()=>{LOGDIMS.forEach(([k])=>LOGF[k].clear());q('#f-ip').value='';q('#f-bot').value='';buildLogFilters();logOffset=0;loadLogs()};
+  q('#f-bot').onchange=()=>{logOffset=0;loadLogs()};
+  q('#f-ip').onkeydown=e=>{if(e.key==='Enter'){logOffset=0;loadLogs()}};
+  q('#export').onclick=()=>window.open('/api/logs/export?'+logQS()+'&'+rangeQS(),'_blank');
+  q('#prev').onclick=()=>{if(logOffset===0)return;logOffset=Math.max(0,logOffset-LOGPAGE);loadLogs()};
+  q('#next').onclick=()=>{logOffset+=LOGPAGE;loadLogs()};
   LOGVALS=await api('/api/logs/filters?'+rangeQS()).then(r=>r.json()).catch(()=>({}))||{};
   buildLogFilters();
   loadLogs();
 }
 function buildLogFilters(){
-  const box=document.querySelector('#lfilters'); if(!box)return;
+  const box=q('#lfilters'); if(!box)return;
   box.classList.remove('muted'); box.innerHTML='';
   box.style.display='contents';
   LOGDIMS.forEach(([k,label])=>box.appendChild(msel(k,label,LOGVALS[k]||[])));
 }
 function msel(key,label,values){
   const el=$(`<div class="msel" data-k="${key}">
-    <button class="msel-btn" type="button"><span>${label}</span><span class="cnt"></span><span class="arr">▾</span></button>
+    <button class="msel-btn" type="button"><span>${esc(label)}</span><span class="cnt"></span><span class="arr">▾</span></button>
     <div class="msel-pop">
       <input class="msel-search" placeholder="search…">
       <div class="msel-tools"><button data-all="1">all</button><button data-none="1">clear</button></div>
@@ -428,20 +475,22 @@ function msel(key,label,values){
     </div></div>`);
   const btn=el.querySelector('.msel-btn'), pop=el.querySelector('.msel-pop'), search=el.querySelector('.msel-search');
   const sync=()=>{const n=LOGF[key].size;el.querySelector('.cnt').textContent=n?n:'';el.classList.toggle('on',n>0)};
-  btn.onclick=e=>{e.stopPropagation();const open=el.classList.contains('open');document.querySelectorAll('.msel').forEach(m=>m.classList.remove('open'));if(!open){el.classList.add('open');setTimeout(()=>search.focus(),0)}};
+  btn.onclick=e=>{e.stopPropagation();const open=el.classList.contains('open');qa('.msel').forEach(m=>m.classList.remove('open'));if(!open){el.classList.add('open');setTimeout(()=>search.focus(),0)}};
   pop.onclick=e=>e.stopPropagation();
   el.querySelectorAll('.msel-list input').forEach(c=>c.onchange=()=>{c.checked?LOGF[key].add(c.value):LOGF[key].delete(c.value);sync()});
-  search.oninput=()=>{const q=search.value.toLowerCase();el.querySelectorAll('.msel-list label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(q)?'':'none'})};
+  search.oninput=()=>{const s=search.value.toLowerCase();el.querySelectorAll('.msel-list label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(s)?'':'none'})};
   el.querySelector('[data-all]').onclick=()=>{el.querySelectorAll('.msel-list label').forEach(l=>{if(l.style.display!=='none'){const c=l.querySelector('input');c.checked=true;LOGF[key].add(c.value)}});sync()};
   el.querySelector('[data-none]').onclick=()=>{el.querySelectorAll('.msel-list input').forEach(c=>{c.checked=false});LOGF[key].clear();sync()};
   sync();
   return el;
 }
 async function loadLogs(){
-  const qs=logQS();qs.set('limit',100);qs.set('offset',logOffset);
+  const qs=logQS();qs.set('limit',LOGPAGE);qs.set('offset',logOffset);
+  const wrap=q('#logwrap'); if(!wrap)return;
+  wrap.innerHTML=stateHTML('loading…');
   const r=await api('/api/logs?'+qs+'&'+rangeQS()).then(r=>r.json()).catch(()=>null);
-  const wrap=document.querySelector('#logwrap');
-  if(!r||!r.rows){wrap.innerHTML='<span class="muted">no data</span>';return}
+  if(!r||!r.rows){wrap.innerHTML=stateHTML('failed to load logs','err');return}
+  if(!r.rows.length){wrap.innerHTML=stateHTML('nothing found for these filters');q('#pageinfo').textContent='0 of '+(r.total||0);return}
   const rows=r.rows.map(x=>`<tr>
     <td>${new Date(x.ts).toLocaleString('en-US')}</td>
     <td>${esc(x.group)}</td><td>${esc(x.stream)}</td>
@@ -449,26 +498,29 @@ async function loadLogs(){
     <td>${esc(x.os)} ${esc(x.browser)}</td><td>${esc(x.brand)}</td>
     <td>${x.bot&&x.bot!=='-'?`<span class="pill bot">${esc(x.bot)}</span>`:(x.uniq?'<span class="pill on">uniq</span>':'<span class="pill off">—</span>')}</td>
     <td>${esc(x.ip)}</td><td class="ell">${esc(x.keyword)}</td><td class="ell">${esc(x.out)}</td></tr>`).join('');
-  wrap.innerHTML=`<table><thead><tr><th>Time</th><th>Group</th><th>Stream</th><th>Country</th><th>Device</th><th>OS/Browser</th><th>Brand</th><th>Type</th><th>IP</th><th>Key</th><th>Out</th></tr></thead><tbody>${rows}</tbody></table>`;
-  document.querySelector('#pageinfo').textContent=`${logOffset+1}–${logOffset+r.rows.length} of ${r.total}`;
+  wrap.innerHTML=`<div class="tw"><table><thead><tr><th>Time</th><th>Group</th><th>Stream</th><th>Country</th><th>Device</th><th>OS/Browser</th><th>Brand</th><th>Type</th><th>IP</th><th>Key</th><th>Out</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  q('#pageinfo').textContent=`${logOffset+1}–${logOffset+r.rows.length} of ${r.total}`;
+  q('#prev').disabled=logOffset===0;
+  q('#next').disabled=logOffset+r.rows.length>=r.total;
 }
 
 /* ---------- POSTBACKS (conversions) ---------- */
 async function postbacks(){
   view().innerHTML=`<div class="toolbar"><input id="pb-group" placeholder="group" size="12"><button class="primary" id="pb-go">Show</button>
-    <div class="spacer"></div><span id="pb-total" class="muted"></span></div><div id="pb-wrap" class="muted">loading…</div>`;
-  document.querySelector('#pb-go').onclick=loadPostbacks;
+    <div class="spacer"></div><span id="pb-total" class="muted"></span></div><div id="pb-wrap">${stateHTML('loading…')}</div>`;
+  q('#pb-go').onclick=loadPostbacks;
+  q('#pb-group').onkeydown=e=>{if(e.key==='Enter')loadPostbacks()};
   loadPostbacks();
 }
 async function loadPostbacks(){
-  const g=document.querySelector('#pb-group').value.trim();
+  const g=q('#pb-group').value.trim();
+  const wrap=q('#pb-wrap'); wrap.innerHTML=stateHTML('loading…');
   const r=await api('/api/postbacks?'+rangeQS()+(g?'&group='+encodeURIComponent(g):'')).then(r=>r.json()).catch(()=>null);
-  const wrap=document.querySelector('#pb-wrap');
-  if(!r||!r.rows){wrap.innerHTML='<span class="muted">no data</span>';return}
-  document.querySelector('#pb-total').innerHTML='Total profit: <b class="ok">'+(r.total||0).toFixed(2)+'</b>';
-  if(!r.rows.length){wrap.innerHTML='<span class="muted">no conversions</span>';return}
-  wrap.innerHTML=`<table><thead><tr><th>Time</th><th>Group</th><th>Stream</th><th>Domain</th><th>Device</th><th>Country</th><th>City</th><th>Profit</th><th>CID</th></tr></thead><tbody>${
-    r.rows.map(x=>`<tr><td>${new Date(x.ts).toLocaleString('en-US')}</td><td>${esc(x.group)}</td><td>${esc(x.stream)}</td><td class="ell">${esc(x.domain)}</td><td>${esc(x.device)}</td><td>${esc(x.country)}</td><td>${esc(x.city)}</td><td class="ok">${(x.profit||0).toFixed(2)}</td><td>${esc(x.cid)}</td></tr>`).join('')}</tbody></table>`;
+  if(!r||!r.rows){wrap.innerHTML=stateHTML('failed to load conversions','err');return}
+  q('#pb-total').innerHTML='Total profit: <b class="ok">'+(r.total||0).toFixed(2)+'</b>';
+  if(!r.rows.length){wrap.innerHTML=stateHTML('no conversions for the period');return}
+  wrap.innerHTML=`<div class="tw"><table><thead><tr><th>Time</th><th>Group</th><th>Stream</th><th>Domain</th><th>Device</th><th>Country</th><th>City</th><th>Profit</th><th>CID</th></tr></thead><tbody>${
+    r.rows.map(x=>`<tr><td>${new Date(x.ts).toLocaleString('en-US')}</td><td>${esc(x.group)}</td><td>${esc(x.stream)}</td><td class="ell">${esc(x.domain)}</td><td>${esc(x.device)}</td><td>${esc(x.country)}</td><td>${esc(x.city)}</td><td class="ok">${(x.profit||0).toFixed(2)}</td><td>${esc(x.cid)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 /* ---------- KEYS (keywords) ---------- */
@@ -480,80 +532,144 @@ function keys(){
     <select id="k-se"><option value="0">regular keys</option><option value="1">from search engines</option></select>
     <button class="primary" id="k-go">Show</button></div>
     <textarea id="k-data" spellcheck="false" class="code muted">specify group and date…</textarea>`;
-  document.querySelector('#k-go').onclick=loadKeys;
+  q('#k-go').onclick=loadKeys;
+  q('#k-group').onkeydown=e=>{if(e.key==='Enter')loadKeys()};
 }
 async function loadKeys(){
-  const g=document.querySelector('#k-group').value.trim(),d=document.querySelector('#k-date').value,se=document.querySelector('#k-se').value;
-  const ta=document.querySelector('#k-data');ta.value='loading…';
+  const g=q('#k-group').value.trim(),d=q('#k-date').value,se=q('#k-se').value;
+  const ta=q('#k-data');ta.value='loading…';
   const r=await api(`/api/keys?group=${encodeURIComponent(g)}&date=${d}&se=${se}`).then(r=>r.json()).catch(()=>null);
   ta.classList.remove('muted');ta.value=(r&&r.content)?r.content:'(empty)';
 }
 
-/* ---------- GROUPS (stream form builder) ---------- */
-let GROUPS=[], gi=-1, si=-1, expanded=new Set(), gOpen=true;
+/* ==================================================================
+   GROUPS — master–detail editor.
+
+   The right pane shows exactly ONE form: the group's or a stream's.
+   That is the whole point of the layout: a stream form used to render
+   BELOW the group form, so selecting a stream pushed the card far down
+   the page and the code had to chase it with scrollIntoView(). Here both
+   panes scroll inside themselves and the selected form always starts at
+   the same place, so nothing moves and nothing needs chasing.
+
+   SEL.s === -1 means "the group itself is selected".
+   ================================================================== */
+let GROUPS=[], SEL={g:-1,s:-1}, EXPANDED=new Set(), DIRTY=false, TREEQ='';
 const REDIRECTS=['http_redirect','javascript','meta_refresh','iframe_redirect','iframe_selection','js_redirect','js_selection','show_text','show_page_html','under_construction','stop','403_forbidden','404_not_found','500_server_error','api','show_out'];
 const HEADERS=['text/html','text/plain','application/javascript'];
 const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const STABS=['Main','Devices','WAP','Geo','Filters','UA/OS/Brand','Schedule','Limit','Bots','Remote','API'];
 const opt=(v,l,cur)=>`<option value="${v}"${String(cur)===String(v)?' selected':''}>${l}</option>`;
 const sel=(id,opts)=>`<select id="${id}">${opts}</select>`;
 const chevSvg='<svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M9 6l6 6-6 6"/></svg>';
 // filter flag: 0 off / 1 exclude / 2 include
 const flagSel=(id,cur)=>sel(id,opt(0,'off',cur)+opt(1,'exclude',cur)+opt(2,'include',cur));
 const lf=(g,key)=>{const f=(g&&g[key])||{};return{flag:f.flag||0,vals:(f.values||[]).join('\n'),raw:f.raw||''}};
+const curGroup=()=>SEL.g>=0?GROUPS[SEL.g]:null;
+const curStream=()=>{const g=curGroup();return (g&&SEL.s>=0&&g.streams&&g.streams[SEL.s])||null};
+
+function markDirty(){DIRTY=true;const d=q('#dirty');if(d)d.classList.add('on')}
+function clearDirty(){DIRTY=false;const d=q('#dirty');if(d)d.classList.remove('on')}
+function confirmLeave(){return !DIRTY||confirm('There are unsaved changes in the groups editor. Leave and discard them?')}
 
 async function groups(){
-  view().innerHTML='<div class="muted">loading…</div>';
+  view().innerHTML=stateHTML('loading…');
   GROUPS=await api('/api/groups').then(r=>r.json()).catch(()=>[])||[];
-  gi=GROUPS.length?0:-1; si=-1; expanded=new Set(gi>=0?[gi]:[]); gOpen=true;
+  clearDirty(); TREEQ='';
+  SEL={g:GROUPS.length?0:-1,s:-1};
+  EXPANDED=new Set(SEL.g>=0?[SEL.g]:[]);
   view().innerHTML=`
-    <div class="row"><button id="newg" class="primary">+ group</button><div class="spacer"></div>
-      <span id="gmsg" class="muted"></span><button class="primary" id="saveall">Save all</button></div>
-    <div class="ed"><div class="glist" id="glist"></div><div id="gdetail" class="panel"></div></div>`;
-  document.querySelector('#newg').onclick=newGroup;
-  document.querySelector('#saveall').onclick=saveAll;
-  renderGList(); if(gi>=0)groupDetail();
+    <div class="gbar">
+      <button id="newg" class="primary">+ group</button>
+      <span class="muted" style="font-size:12.5px">${GROUPS.length} group(s)</span>
+      <div class="spacer"></div>
+      <span class="dirty" id="dirty"><span class="d"></span>unsaved changes</span>
+      <span id="gmsg" class="muted"></span>
+      <button class="primary" id="saveall">Save all</button>
+    </div>
+    <div class="ged">
+      <div class="glist" id="glist">
+        <input class="gsearch" id="gsearch" placeholder="search group or stream…" autocomplete="off">
+        <div id="gtree"></div>
+      </div>
+      <div class="gpane" id="gpane"></div>
+    </div>`;
+  q('#newg').onclick=newGroup;
+  q('#saveall').onclick=saveAll;
+  // The input is outside #gtree on purpose: re-rendering the tree on every
+  // keystroke would otherwise destroy the field and drop the caret.
+  q('#gsearch').oninput=e=>{TREEQ=e.target.value.trim();renderTree()};
+  // Any edit inside the pane marks the model dirty — no silent data loss.
+  q('#gpane').addEventListener('input',markDirty);
+  q('#gpane').addEventListener('change',markDirty);
+  renderTree(); renderPane();
 }
-function renderGList(){
-  const box=document.querySelector('#glist');
-  if(!GROUPS.length){box.innerHTML='<span class="muted" style="padding:8px">no groups</span>';return}
-  box.innerHTML=GROUPS.map((g,i)=>{
-    const open=expanded.has(i);
+
+/* ---------- tree ---------- */
+function treeMatch(g,s){
+  if(!TREEQ)return true;
+  const t=TREEQ.toLowerCase();
+  if(s!=null)return String(s.name||'').toLowerCase().includes(t);
+  const inGroup=String(g.id||'').toLowerCase().includes(t)||String(g.name||'').toLowerCase().includes(t);
+  return inGroup||(g.streams||[]).some(x=>String(x.name||'').toLowerCase().includes(t));
+}
+function renderTree(){
+  const box=q('#gtree'); if(!box)return;
+  const t=TREEQ.toLowerCase();
+  const shown=GROUPS.map((g,i)=>[g,i]).filter(([g])=>treeMatch(g,null));
+  const body=shown.map(([g,i])=>{
+    const open=EXPANDED.has(i), n=(g.streams||[]).length;
     const head=`<div class="gline"><span class="chev ${open?'open':''}" data-toggle="${i}">${chevSvg}</span>`+
-      `<button class="gnode ${i===gi?'active':''}" data-g="${i}"><span class="dot ${g.status?'on':''}"></span>${esc(g.id||'(no id)')}</button></div>`;
+      `<button class="gnode ${(i===SEL.g&&SEL.s<0)?'active':''}" data-g="${i}"><span class="dot ${g.status?'on':''}"></span>`+
+      `<span class="nm">${esc(g.id||'(no id)')}</span><span class="cnt">${n}</span></button></div>`;
     if(!open)return head;
-    const streams=(g.streams||[]).map((s,j)=>`<button class="snode ${(i===gi&&j===si)?'active':''}" data-g="${i}" data-s="${j}"><span class="dot ${s.status?'on':''}"></span>${esc(s.name||'stream '+(j+1))}</button>`).join('');
+    // While searching, show the streams that match — unless the group itself
+    // matched, in which case all of its streams stay visible.
+    const groupHit=!t||String(g.id||'').toLowerCase().includes(t)||String(g.name||'').toLowerCase().includes(t);
+    const streams=(g.streams||[]).map((s,j)=>[s,j]).filter(([s])=>groupHit||treeMatch(g,s))
+      .map(([s,j])=>`<button class="snode ${(i===SEL.g&&j===SEL.s)?'active':''}" data-g="${i}" data-s="${j}">`+
+        `<span class="dot ${s.status?'on':''}"></span><span class="nm">${esc(s.name||'stream '+(j+1))}</span></button>`).join('');
     return head+`<div class="subtree">${streams}<button class="snode add" data-g="${i}" data-add="1">+ stream</button></div>`;
   }).join('');
-  box.querySelectorAll('.chev').forEach(c=>c.onclick=()=>{collect();const i=+c.dataset.toggle;expanded.has(i)?expanded.delete(i):expanded.add(i);renderGList();if(i===gi)groupDetail()});
+  box.innerHTML=shown.length?body:'<div class="none">'+(GROUPS.length?'nothing matches':'no groups yet')+'</div>';
+  box.querySelectorAll('.chev').forEach(c=>c.onclick=()=>{
+    const i=+c.dataset.toggle; EXPANDED.has(i)?EXPANDED.delete(i):EXPANDED.add(i); renderTree();
+  });
   box.querySelectorAll('button[data-g]').forEach(b=>b.onclick=()=>{
-    collect(); gi=+b.dataset.g; expanded.add(gi);
-    if(b.dataset.add){addStream();return}
-    if(b.dataset.s!==undefined){si=+b.dataset.s;renderGList();groupDetail();focusStream()}
-    else{si=-1;renderGList();groupDetail()}
+    commit();
+    const gi=+b.dataset.g;
+    if(b.dataset.add){SEL.g=gi;EXPANDED.add(gi);addStream();return}
+    SEL.g=gi; EXPANDED.add(gi);
+    SEL.s=b.dataset.s!==undefined?+b.dataset.s:-1;
+    renderTree(); renderPane();
   });
 }
-function focusStream(){
-  const card=document.querySelector('#sform .streamcard');
-  if(!card)return;
-  card.scrollIntoView({behavior:'smooth',block:'start'});
-  card.classList.remove('flash');void card.offsetWidth;card.classList.add('flash');
-  const nm=document.querySelector('#s_name'); if(nm)setTimeout(()=>nm.focus({preventScroll:true}),300);
-}
-function addStream(){const g=GROUPS[gi];g.streams=g.streams||[];g.streams.push({name:'stream'+((g.streams.length||0)+1),status:true,rules:{},out:{redirect:'http_redirect',out:'',chance:100}});si=g.streams.length-1;renderGList();groupDetail();focusStream()}
-function newGroup(){collect();GROUPS.push({id:'group'+(GROUPS.length+1),name:'',status:true,redirect:'stop',header:'text/html',out:'',geo:'cf',uniq_method:'ip',uniq_seconds:86400,firewall:{enabled:false,queries:100,seconds:60},streams:[]});gi=GROUPS.length-1;si=-1;expanded.add(gi);gOpen=true;renderGList();groupDetail()}
-function delGroup(){if(gi<0)return;if(!confirm('Delete group?'))return;GROUPS.splice(gi,1);gi=GROUPS.length?0:-1;si=-1;renderGList();gi>=0?groupDetail():(document.querySelector('#gdetail').innerHTML='');}
 
-function groupDetail(){
-  const g=GROUPS[gi];
-  const d=document.querySelector('#gdetail');
-  d.innerHTML=`
-    <div class="ghead">
-      <span class="chev ${gOpen?'open':''}" id="gtoggle">${chevSvg}</span>
-      <span class="gtitle">${esc(g.id||'(no id)')}</span>
-      <span class="gsum">${g.status?'active':'off'} · ${esc(g.redirect||'stop')} · streams: ${(g.streams||[]).length}</span>
-      <div class="spacer"></div><button id="clrlog">Clear logs</button><button id="delg" class="danger">Delete</button>
+/* ---------- pane: group form OR stream form ---------- */
+function renderPane(){
+  const pane=q('#gpane'); if(!pane)return;
+  const g=curGroup();
+  if(!g)pane.innerHTML='<div class="empty-pane"><div>No group selected.<br>Create one with <b>+ group</b>.</div></div>';
+  else if(SEL.s>=0&&curStream())streamForm();
+  else groupForm();
+  pane.scrollTop=0;                 // every form starts at its own top
+}
+
+function groupForm(){
+  const g=curGroup();
+  q('#gpane').innerHTML=`
+    <div class="phead">
+      <div>
+        <div class="crumb">Group</div>
+        <div class="ttl"><span class="dot ${g.status?'on':''}"></span>${esc(g.id||'(no id)')}</div>
+      </div>
+      <span class="sub">${g.status?'active':'off'} · ${esc(g.redirect||'stop')} · streams: ${(g.streams||[]).length}</span>
+      <div class="spacer"></div>
+      <button id="addstream">+ stream</button>
+      <button id="clrlog">Clear logs</button>
+      <button id="delg" class="danger">Delete group</button>
     </div>
-    <div id="gform" style="display:${gOpen?'block':'none'}">
+    <div class="pbody">
     <div class="g2c">
       <div class="fld"><label>ID (URL: /ID)</label><input type="text" id="g_id" value="${esc(g.id)}"></div>
       <div class="fld"><label>Name</label><input type="text" id="g_name" value="${esc(g.name)}"></div>
@@ -564,30 +680,44 @@ function groupDetail(){
       <div class="fld"><label>Uniqueness</label>${sel('g_uniq',opt('ip','by IP (Redis)',g.uniq_method)+opt('cookie','by cookie',g.uniq_method))}</div>
       <div class="fld"><label>Uniqueness window, sec</label><input type="number" id="g_uniqsec" value="${g.uniq_seconds||86400}"></div>
     </div>
-    <div class="fld"><label>Default Out (macros [KEY] [PATH] [IP] [COUNTRY] [CITY] [()COUNTRY()] [DEVICE] [CID] [RANDNUM-a-b] [RANDLINE-(file)-n] [RANDDFL-(dir)-n])</label><textarea id="g_out">${esc(g.out)}</textarea></div>
+    <div class="fld"><label>Default Out</label><textarea id="g_out">${esc(g.out)}</textarea>
+      <div class="hint">Macros: [KEY] [PATH] [IP] [COUNTRY] [CITY] [()COUNTRY()] [DEVICE] [CID] [RANDNUM-a-b] [RANDLINE-(file)-n] [RANDDFL-(dir)-n]</div></div>
     <div class="chk"><input type="checkbox" id="g_status" ${g.status?'checked':''}><label for="g_status">Group active</label></div>
+    <h2>Anti-flood</h2>
+    <div class="chk"><input type="checkbox" id="fw_en" ${g.firewall&&g.firewall.enabled?'checked':''}><label for="fw_en">Enable anti-flood</label></div>
     <div class="g2c">
-      <div class="chk"><input type="checkbox" id="fw_en" ${g.firewall&&g.firewall.enabled?'checked':''}><label for="fw_en">Anti-flood</label></div>
-      <div></div>
       <div class="fld"><label>Max requests per IP</label><input type="number" id="fw_q" value="${(g.firewall&&g.firewall.queries)||100}"></div>
-      <div class="fld"><label>Per window, sec</label><input type="number" id="fw_s" value="${(g.firewall&&g.firewall.seconds)||60}"></div>
+      <div class="fld"><label>Per window, sec</label><input type="number" id="fw_s" value="${(g.firewall&&g.firewall.seconds)||60}">
+        <div class="hint">0 falls back to 60 s on the engine — a window is always applied.</div></div>
     </div>
+    ${streamsTable(g)}
     ${linksPanel(g)}
-    </div>
-    <div id="sform"></div>`;
-  document.querySelector('#gtoggle').onclick=()=>{collect();gOpen=!gOpen;groupDetail();if(si>=0)focusStream()};
-  document.querySelector('#delg').onclick=delGroup;
-  document.querySelector('#clrlog').onclick=async()=>{
+    </div>`;
+  q('#delg').onclick=delGroup;
+  q('#addstream').onclick=()=>{commit();addStream()};
+  q('#clrlog').onclick=async()=>{
     if(!confirm('Delete all logs for group '+g.id+'?'))return;
     const r=await api('/api/logs?group='+encodeURIComponent(g.id),{method:'DELETE',headers:{'X-CSRF-Token':CSRF}});
     alert(r.ok?'Group logs marked for deletion':'Error');
   };
-  if(si>=0)streamForm();
+  q('#gpane').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{
+    commit();SEL.s=+b.dataset.open;renderTree();renderPane();
+  });
+}
+// A compact overview of the group's streams: order, status and where each sends.
+function streamsTable(g){
+  const st=g.streams||[];
+  if(!st.length)return '<h2>Streams</h2><div class="panel" style="box-shadow:none"><span class="muted">No streams yet. The group falls back to its default redirect.</span></div>';
+  return `<h2>Streams (matched top to bottom)</h2><div class="tw"><table><thead><tr><th>#</th><th>Name</th><th>Status</th><th>Redirect</th><th>Out</th><th></th></tr></thead><tbody>${
+    st.map((s,j)=>`<tr><td>${j+1}</td><td>${esc(s.name||'stream '+(j+1))}</td>
+      <td>${s.status?'<span class="pill on">on</span>':'<span class="pill off">off</span>'}</td>
+      <td>${esc((s.out||{}).redirect||'—')}</td><td class="ell">${esc((s.out||{}).out||'')}</td>
+      <td><button data-open="${j}" class="ghost">edit →</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 function linksPanel(g){
   const base=(ENGINE||'').replace(/\/$/,'');
   const ids=[g.id,...(g.aliases||[])].filter(Boolean);
-  const rows=ids.map(id=>`<div class="lnk">↗ <a href="${esc(base+'/'+id)}" target="_blank">${esc(base+'/'+id)}</a></div>`).join('')||'<div class="muted">specify group ID</div>';
+  const rows=ids.map(id=>`<div class="lnk">↗ <a href="${esc(base+'/'+id)}" target="_blank" rel="noreferrer">${esc(base+'/'+id)}</a></div>`).join('')||'<div class="muted">specify group ID</div>';
   return `<h2>Group links (what the engine serves)</h2><div class="panel" style="box-shadow:none">
     ${rows}
     <div class="lnk muted">with keyword: <code>${esc(base+'/'+(g.id||'ID')+'?q=KEYWORD')}</code></div>
@@ -599,14 +729,25 @@ function linksPanel(g){
 function flt(label,key,g){const v=lf(g,key);return `<div class="flt"><div class="fld"><label>${label}</label><textarea id="f_${key}_v">${esc(v.vals||v.raw)}</textarea></div><div class="fld"><label>mode</label>${flagSel('f_'+key+'_f',v.flag)}</div></div>`}
 
 function streamForm(){
-  const s=GROUPS[gi].streams[si], r=s.rules||{}, o=s.out||{};
+  const g=curGroup(), s=curStream(), r=s.rules||{}, o=s.out||{};
   const ops=r.operators||{};
   const sec=(id,html)=>`<div class="sec" data-sec="${id}">${html}</div>`;
-  document.querySelector('#sform').innerHTML=`
-    <div class="streamcard">
-    <div class="row" style="margin-bottom:8px"><b style="font-size:15px">⌁ Stream: ${esc(s.name||'')}</b><div class="spacer"></div><button id="up">↑</button><button id="down">↓</button><button id="dels" class="danger">Delete stream</button></div>
+  const n=(g.streams||[]).length;
+  q('#gpane').innerHTML=`
+    <div class="phead">
+      <button class="backlink" id="toparent">${icon('back')}${esc(g.id||'group')}</button>
+      <div>
+        <div class="crumb"><b>${esc(g.id||'(no id)')}</b> / stream ${SEL.s+1} of ${n}</div>
+        <div class="ttl"><span class="dot ${s.status?'on':''}"></span>${esc(s.name||'(unnamed)')}</div>
+      </div>
+      <div class="spacer"></div>
+      <button id="up" title="Move up (matched earlier)" ${SEL.s===0?'disabled':''}>↑</button>
+      <button id="down" title="Move down" ${SEL.s===n-1?'disabled':''}>↓</button>
+      <button id="dels" class="danger">Delete stream</button>
+    </div>
+    <div class="pbody streamcard">
     <div class="ftabs" id="ftabs">
-      ${['Main','Devices','WAP','Geo','Filters','UA/OS/Brand','Schedule','Limit','Bots','Remote','API'].map((t,i)=>`<button data-sec="t${i}" class="${i?'':'active'}">${t}</button>`).join('')}
+      ${STABS.map((t,i)=>`<button data-sec="t${i}" class="${i?'':'active'}">${t}</button>`).join('')}
     </div>
     ${sec('t0',(()=>{const sp=s.separation||{};return `
       <div class="g2c">
@@ -619,14 +760,14 @@ function streamForm(){
       <div class="fld"><label>Out (separate variants with <code>|||</code>)</label><textarea id="s_out">${esc(o.out)}</textarea></div>
       <div class="chk"><input type="checkbox" id="sep_en" ${sp.enabled?'checked':''}><label for="sep_en">Separation: replace output by keyword from .dat</label></div>
       <div class="fld"><label>Separation file (in data dir, lines "key;output")</label><input type="text" id="sep_file" value="${esc(sp.file||'')}"></div>
-      <div class="fld"><label>CURL find/replace (for redirect=CURL; lines "find|||replace", [KEY])</label><textarea id="s_curl">${esc(s.curl||'')}</textarea></div>`})())}
+      <div class="fld"><label>CURL find/replace (for redirect=curl; lines "find|||replace", [KEY])</label><textarea id="s_curl">${esc(s.curl||'')}</textarea></div>`})())}
     ${sec('t1',`
       <div class="fld"><label>Computers</label>${sel('d_computer',opt(0,'any',r.computer)+opt(1,'block',r.computer))}</div>
       <div class="fld"><label>Phones</label>${sel('d_phone',opt(0,'any',r.phone)+opt(1,'block',r.phone))}</div>
       <div class="fld"><label>Tablets</label>${sel('d_tablet',opt(0,'any',r.tablet)+opt(1,'block',r.tablet))}</div>`)}
     ${sec('t2',`
       <p class="muted">Operators come from labels (#name) in wap.dat. Mode: block / require.</p>
-      <div id="ops">${Object.keys(ops).map(n=>oprow(n,ops[n])).join('')}</div>
+      <div id="ops">${Object.keys(ops).map(x=>oprow(x,ops[x])).join('')}</div>
       <button id="addop" style="margin-top:6px">+ operator</button>`)}
     ${sec('t3',`${flt('Countries (ISO, per line / comma-separated)','country',r)}${flt('Cities','city',r)}${flt('Regions (ISO)','region',r)}`)}
     ${sec('t4',`${flt('Browser language','lang',r)}${flt('User-Agent (text or /regex/)','ua_text',r)}${flt('Referer','referer_text',r)}${flt('Domain','domain_text',r)}${flt('Keyword','key_text',r)}
@@ -643,7 +784,8 @@ function streamForm(){
       <div class="g2c">
         <div class="fld"><label>Type</label>${sel('lim_type',opt(1,'per day',(r.limit||{}).type)+opt(2,'per period',(r.limit||{}).type))}</div>
         <div class="fld"><label>Limit, count</label><input type="number" id="lim_count" value="${(r.limit||{}).count||0}"></div>
-        <div class="fld"><label>Window (for "per period"), sec</label><input type="number" id="lim_sec" value="${(r.limit||{}).seconds||0}"></div>
+        <div class="fld"><label>Window (for "per period"), sec</label><input type="number" id="lim_sec" value="${(r.limit||{}).seconds||0}">
+          <div class="hint">0 falls back to 24 h on the engine — the counter always expires.</div></div>
       </div>`)}
     ${sec('t8',(()=>{const bt=s.bots||{};const bcb=(id,l)=>`<div class="chk"><input type="checkbox" id="b_${id}" ${bt[id]?'checked':''}><label for="b_${id}">${l}</label></div>`;return `
       <div class="g2c">
@@ -679,27 +821,66 @@ function streamForm(){
       <div class="fld"><label>Probability, %</label><input type="number" id="am_prob" value="${am.prob||0}"></div>`})())}
     <div class="note">Planned: <b>VirusTotal</b> (cron) and per-stream Header/Comment.</div>
     </div>`;
-  // tab switching
-  document.querySelectorAll('#ftabs button').forEach(b=>b.onclick=()=>{
-    document.querySelectorAll('#ftabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-    document.querySelectorAll('#sform .sec').forEach(s=>s.classList.toggle('active',s.dataset.sec===b.dataset.sec));
+  qa('#ftabs button').forEach(b=>b.onclick=()=>{
+    qa('#ftabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+    qa('#gpane .sec').forEach(x=>x.classList.toggle('active',x.dataset.sec===b.dataset.sec));
+    q('#gpane').scrollTop=0;
   });
-  document.querySelector('#sform .sec').classList.add('active');
-  document.querySelector('#dels').onclick=()=>{if(!confirm('Delete stream?'))return;GROUPS[gi].streams.splice(si,1);si=-1;renderGList();groupDetail()};
-  const move=(d)=>{collectStream();const a=GROUPS[gi].streams,j=si+d;if(j<0||j>=a.length)return;[a[si],a[j]]=[a[j],a[si]];si=j;renderGList();groupDetail();focusStream()};
-  document.querySelector('#up').onclick=()=>move(-1);
-  document.querySelector('#down').onclick=()=>move(1);
-  const addop=document.querySelector('#addop'); if(addop)addop.onclick=()=>{const box=document.querySelector('#ops');box.insertAdjacentHTML('beforeend',oprow('',1));bindOpDel()};
+  q('#gpane .sec').classList.add('active');
+  q('#toparent').onclick=()=>{commit();SEL.s=-1;renderTree();renderPane()};
+  q('#dels').onclick=()=>{
+    if(!confirm('Delete stream "'+(s.name||'')+'"?'))return;
+    g.streams.splice(SEL.s,1); SEL.s=-1; markDirty(); renderTree(); renderPane();
+  };
+  const move=(d)=>{
+    commit(); const a=g.streams, j=SEL.s+d;
+    if(j<0||j>=a.length)return;
+    [a[SEL.s],a[j]]=[a[j],a[SEL.s]]; SEL.s=j; markDirty(); renderTree(); renderPane();
+  };
+  q('#up').onclick=()=>move(-1);
+  q('#down').onclick=()=>move(1);
+  const addop=q('#addop'); if(addop)addop.onclick=()=>{q('#ops').insertAdjacentHTML('beforeend',oprow('',1));bindOpDel();markDirty()};
   bindOpDel();
+  const nm=q('#s_name'); if(nm)nm.focus({preventScroll:true});
 }
 function oprow(name,flag){return `<div class="oprow"><input type="text" class="op-n" placeholder="name (as in wap.dat)" value="${esc(name)}">${sel('',opt(0,'any',flag)+opt(1,'block',flag)+opt(2,'require',flag)).replace('<select','<select class="op-f"')}<button class="op-x danger">✕</button></div>`}
-function bindOpDel(){document.querySelectorAll('.op-x').forEach(b=>b.onclick=()=>b.closest('.oprow').remove())}
+function bindOpDel(){qa('.op-x').forEach(b=>b.onclick=()=>{b.closest('.oprow').remove();markDirty()})}
 
-// read current forms into the model
-function readLF(key){const t=document.querySelector('#f_'+key+'_v'),f=document.querySelector('#f_'+key+'_f');if(!t)return null;const vals=t.value.split(/[\n,]/).map(x=>x.trim()).filter(Boolean);return{flag:+f.value,values:vals,raw:vals.join(',')}}
+function addStream(){
+  const g=curGroup(); if(!g)return;
+  g.streams=g.streams||[];
+  g.streams.push({name:'stream'+((g.streams.length||0)+1),status:true,rules:{},out:{redirect:'http_redirect',out:'',chance:100}});
+  SEL.s=g.streams.length-1; markDirty(); renderTree(); renderPane();
+}
+function newGroup(){
+  commit();
+  GROUPS.push({id:'group'+(GROUPS.length+1),name:'',status:true,redirect:'stop',header:'text/html',out:'',geo:'cf',
+    uniq_method:'ip',uniq_seconds:86400,firewall:{enabled:false,queries:100,seconds:60},streams:[]});
+  SEL={g:GROUPS.length-1,s:-1}; EXPANDED.add(SEL.g); TREEQ=''; markDirty(); renderTree(); renderPane();
+  const id=q('#g_id'); if(id){id.focus();id.select()}
+}
+function delGroup(){
+  const g=curGroup(); if(!g)return;
+  if(!confirm('Delete group "'+(g.id||'')+'" with all its streams?'))return;
+  GROUPS.splice(SEL.g,1);
+  SEL={g:GROUPS.length?0:-1,s:-1}; EXPANDED=new Set(SEL.g>=0?[SEL.g]:[]);
+  markDirty(); renderTree(); renderPane();
+}
+
+/* ---------- model <- forms ---------- */
+function readLF(key){
+  const t=q('#f_'+key+'_v'), f=q('#f_'+key+'_f');
+  if(!t)return null;
+  const raw=t.value.trim();
+  // A /regex/ is a single value: splitting on commas would tear apart patterns
+  // like /a{2,3}/ and the router would then compile something else entirely.
+  if(raw.startsWith('/'))return{flag:+f.value,values:[raw],raw};
+  const vals=raw.split(/[\n,]/).map(x=>x.trim()).filter(Boolean);
+  return{flag:+f.value,values:vals,raw:vals.join(',')};
+}
 function collectStream(){
-  if(gi<0||si<0)return; const root=document.querySelector('#sform'); if(!root||!document.querySelector('#s_name'))return;
-  const s=GROUPS[gi].streams[si]; const v=id=>document.querySelector('#'+id);
+  const s=curStream(); if(!s||!q('#s_name'))return;
+  const v=id=>q('#'+id);
   s.name=v('s_name').value.trim();
   s.status=v('s_status').checked;
   s.out={redirect:v('s_redirect').value,out:v('s_out').value,chance:+v('s_chance').value||0,distribution:v('s_dist').value};
@@ -709,14 +890,13 @@ function collectStream(){
   r.ip_list={flag:+v('f_iplist_f').value,file:v('f_iplist_file').value.trim()};
   r.computer=+v('d_computer').value; r.phone=+v('d_phone').value; r.tablet=+v('d_tablet').value;
   r.unique=+v('r_unique').value; r.yabrowser=+v('r_ya').value; r.has_referer=+v('r_ref').value;
-  const ops={};document.querySelectorAll('#ops .oprow').forEach(row=>{const n=row.querySelector('.op-n').value.trim();if(n)ops[n]=+row.querySelector('.op-f').value});
+  const ops={};qa('#ops .oprow').forEach(row=>{const n=row.querySelector('.op-n').value.trim();if(n)ops[n]=+row.querySelector('.op-f').value});
   r.operators=ops;
-  const days=[false,false,false,false,false,false,false];document.querySelectorAll('.schd').forEach(c=>days[+c.dataset.d]=c.checked);
+  const days=[false,false,false,false,false,false,false];qa('.schd').forEach(c=>days[+c.dataset.d]=c.checked);
   r.schedule={enabled:v('sch_en').checked,days};
   r.limit={enabled:v('lim_en').checked,type:+v('lim_type').value,count:+v('lim_count').value||0,seconds:+v('lim_sec').value||0};
   s.rules=r;
-  // bots
-  const bchk=id=>{const e=document.querySelector('#b_'+id);return e?e.checked:false};
+  const bchk=id=>{const e=q('#b_'+id);return e?e.checked:false};
   s.bots={
     ch_ua:bchk('ch_ua'),ch_empty_ua:bchk('ch_empty_ua'),ch_empty_ref:bchk('ch_empty_ref'),
     ch_empty_lang:bchk('ch_empty_lang'),ch_ipv6:bchk('ch_ipv6'),ch_ptr:bchk('ch_ptr'),ch_list_ua:bchk('ch_list_ua'),
@@ -725,13 +905,14 @@ function collectStream(){
     ch_bot_ip_others:bchk('ch_bot_ip_others'),save_ip:bchk('save_ip'),
     redirect:v('b_redirect').value,header:v('b_header').value,out:v('b_out').value
   };
-  const gv=id=>{const e=document.querySelector('#'+id);return e?e.value:''};
+  const gv=id=>{const e=q('#'+id);return e?e.value:''};
   s.curl=gv('s_curl'); s.b_curl=gv('b_curl');
   s.remote={enabled:bchk('rm_en'),url:gv('rm_url'),regexp:gv('rm_re'),reserved:gv('rm_res'),cache:+gv('rm_cache')||0};
   s.api_mac={enabled:bchk('am_en'),code:gv('am_code'),prob:+gv('am_prob')||0};
 }
 function collectGroup(){
-  if(gi<0)return; const g=GROUPS[gi]; const v=id=>document.querySelector('#'+id); if(!v('g_id'))return;
+  const g=curGroup(); if(!g||!q('#g_id'))return;
+  const v=id=>q('#'+id);
   g.id=v('g_id').value.trim(); g.name=v('g_name').value.trim();
   g.aliases=v('g_aliases').value.split(',').map(x=>x.trim()).filter(Boolean);
   g.geo=v('g_geo').value; g.redirect=v('g_redirect').value; g.header=v('g_header').value;
@@ -739,18 +920,27 @@ function collectGroup(){
   g.status=v('g_status').checked;
   g.firewall={enabled:v('fw_en').checked,queries:+v('fw_q').value||0,seconds:+v('fw_s').value||0};
 }
-function collect(){collectStream();collectGroup()}
+// Exactly one form is mounted, so both collectors run and the one that is not
+// on screen sees no fields and returns immediately.
+function commit(){collectStream();collectGroup()}
+
 async function saveAll(){
-  collect();
-  const msg=document.querySelector('#gmsg');
+  commit();
+  const msg=q('#gmsg');
+  const ids=GROUPS.map(g=>(g.id||'').trim());
+  const dup=ids.find((x,i)=>x&&ids.indexOf(x)!==i);
+  if(ids.some(x=>!x)){msg.innerHTML='<span class="err">every group needs an ID</span>';return}
+  if(dup){msg.innerHTML='<span class="err">duplicate group id: '+esc(dup)+'</span>';return}
+  msg.textContent='saving…';
   const r=await api('/api/groups',{method:'PUT',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify(GROUPS)});
   const j=await r.json().catch(()=>({}));
-  msg.innerHTML=r.ok?'<span class="ok">saved ✓</span>':'<span class="err">'+esc(j.error||'error')+'</span>';
+  if(r.ok){clearDirty();msg.innerHTML='<span class="ok">saved ✓</span>';renderTree()}
+  else msg.innerHTML='<span class="err">'+esc(j.error||'error')+'</span>';
 }
 
 /* ---------- LISTS (.dat) ---------- */
 async function lists(){
-  view().innerHTML='<div class="muted">loading…</div>';
+  view().innerHTML=stateHTML('loading…');
   const names=await api('/api/lists').then(r=>r.json()).catch(()=>[]);
   view().innerHTML=`
     <div class="row">
@@ -759,27 +949,33 @@ async function lists(){
     </div>
     <textarea id="ldata" spellcheck="false" class="code muted">select a list…</textarea>
     <p class="muted">Lists: bot IP bases (ip_*.dat), WAP operators (wap.dat — lines with # set the operator name), signatures (signature_*.dat), blacklists. Operator count and names are edited here too.</p>`;
-  const sel=document.querySelector('#lname');
-  sel.onchange=()=>loadList(sel.value);
-  document.querySelector('#lsave').onclick=saveList;
-  if(names&&names.length)loadList(names[0]);
+  const s=q('#lname');
+  s.onchange=()=>loadList(s.value);
+  q('#lsave').onclick=saveList;
+  if(names&&names.length)loadList(names[0]); else q('#ldata').value='(no lists in the data directory)';
 }
 async function loadList(name){
-  const ta=document.querySelector('#ldata');ta.classList.add('muted');ta.value='loading…';
+  const ta=q('#ldata');ta.classList.add('muted');ta.value='loading…';
   const j=await api('/api/lists/'+encodeURIComponent(name)).then(r=>r.json()).catch(()=>null);
   ta.classList.remove('muted');ta.value=j?j.content:'';
 }
 async function saveList(){
-  const name=document.querySelector('#lname').value, content=document.querySelector('#ldata').value;
-  const msg=document.querySelector('#lmsg');
+  const name=q('#lname').value, content=q('#ldata').value;
+  const msg=q('#lmsg');
   const r=await api('/api/lists/'+encodeURIComponent(name),{method:'PUT',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify({content})});
   const j=await r.json().catch(()=>({}));
   msg.innerHTML=r.ok?'<span class="ok">saved ✓</span>':'<span class="err">'+esc(j.error||'error')+'</span>';
 }
 
-function render(node){const a=document.querySelector('#app');a.innerHTML='';a.appendChild(node)}
+function render(node){const a=q('#app');a.innerHTML='';a.appendChild(node)}
 // close open filter dropdowns on outside click
-document.addEventListener('click',()=>document.querySelectorAll('.msel.open').forEach(m=>m.classList.remove('open')));
+document.addEventListener('click',()=>qa('.msel.open').forEach(m=>m.classList.remove('open')));
+// Ctrl/Cmd+S saves the groups editor instead of the browser's "save page".
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'&&TAB==='groups'){e.preventDefault();saveAll()}
+});
+// Last line of defence against losing edits by closing the tab.
+window.addEventListener('beforeunload',e=>{if(DIRTY){e.preventDefault();e.returnValue=''}});
 boot();
 </script>
 </body></html>

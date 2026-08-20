@@ -277,9 +277,11 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// chance: for javascript/js_selection — show with probability chance %.
+	// Here chance 0 means "not configured", so only a real 1..99 gates the
+	// output; the draw itself goes through hitPercent, which carries the
+	// off-by-one this comparison would otherwise have to get right by hand.
 	if !botServed && selStream != nil && (redirect == "javascript" || redirect == "js_selection") {
-		ch := selStream.Out.Chance
-		if ch > 0 && ch < 100 && rand.Intn(100)+1 > ch {
+		if ch := selStream.Out.Chance; ch > 0 && ch < 100 && !hitPercent(ch) {
 			redirect = "stop"
 			outRaw = ""
 		}

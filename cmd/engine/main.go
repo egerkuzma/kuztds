@@ -303,22 +303,31 @@ func pickOut(w http.ResponseWriter, r *http.Request, counters *store.Counters, c
 		idx := 0
 		if c, err := r.Cookie(name); err == nil {
 			if n, e := strconv.Atoi(c.Value); e == nil {
-				idx = n + 1
+				idx = variantIndex(n+1, len(parts))
 			}
-		}
-		if idx >= len(parts) {
-			idx = 0
 		}
 		http.SetCookie(w, &http.Cookie{Name: name, Value: strconv.Itoa(idx), Path: "/", HttpOnly: true, MaxAge: 86400})
 		return parts[idx]
 	case "evenly":
 		if counters != nil {
-			return parts[counters.Rotate(ctx, groupID, stream, len(parts))]
+			return parts[variantIndex(counters.Rotate(ctx, groupID, stream, len(parts)), len(parts))]
 		}
 		fallthrough
 	default:
 		return parts[rand.Intn(len(parts))]
 	}
+}
+
+// variantIndex folds i into [0,n), restarting the cycle on anything out of
+// range. Neither rotator nor evenly produces its index locally: the rotator
+// reads it back from a cookie the visitor may rewrite, and evenly gets it from
+// a Redis counter. A cookie of "-5" used to index the variant slice at -4 and
+// take the whole request down with a panic.
+func variantIndex(i, n int) int {
+	if n <= 0 || i < 0 || i >= n {
+		return 0
+	}
+	return i
 }
 
 // separationOut looks up a key in the dataDir/file file (lines "key;out") and
