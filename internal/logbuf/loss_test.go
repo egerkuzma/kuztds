@@ -113,3 +113,43 @@ func TestBuffer_InsertFailureIsNotCounted(t *testing.T) {
 		t.Fatalf("Dropped() = %d, want 0 — this test pins the current behaviour", got)
 	}
 }
+
+// TestBuffer_PushAfterRunExitsIsSilentlyLost documents the third loss path — the
+// only one that fires on every single restart. cmd/engine/main.go cancels the
+// buffer's context (main.go:183) before it calls srv.Shutdown (main.go:186), so
+// Run drains, returns, and stops reading b.in while the HTTP server keeps
+// serving in-flight requests for up to 10 more seconds. Every Push in that
+// window lands in a channel nobody reads: the event is not inserted, not
+// dropped, and not counted — Dropped() stays at zero.
+func TestBuffer_PushAfterRunExitsIsSilentlyLost(t *testing.T) {
+	ins := &fakeInserter{}
+	// capacity comfortably larger than n, so nothing is lost on the channel path.
+	b := New(ins, 100, 1000, time.Hour, quietLogger())
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		b.Run(ctx)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after ctx was cancelled")
+	}
+
+	// This is the shutdown window: handlers are still alive and still logging.
+	const n = 10
+	for i := 0; i < n; i++ {
+		b.Push(Event{Stream: "late"})
+	}
+
+	if got := ins.Total(); got != 0 {
+		t.Fatalf("events stored after Run exited = %d, want 0", got)
+	}
+	if got := b.Dropped(); got != 0 {
+		t.Fatalf("Dropped() = %d, want 0 — the loss leaves no trace at all; this test pins the current behaviour", got)
+	}
+}
