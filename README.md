@@ -132,10 +132,16 @@ period), in-list search, country flags, CSV export, pagination:
 
 ![Logs](docs/img/logs.png)
 
-**Groups & streams** — master–detail editor: collapsible group tree on the left,
-one form pane on the right, live links the engine serves:
+**Groups & streams** — master–detail editor. Selecting a stream in the tree
+swaps the right pane in place; both panes scroll on their own, so the page never
+moves and the form always opens at the same spot:
 
-![Groups and streams](docs/img/groups.png)
+![Stream editor](docs/img/groups.png)
+
+Selecting the group itself shows the group form — settings, anti-flood, an
+overview of its streams and the live links the engine serves:
+
+![Group form](docs/img/group-form.png)
 
 ---
 
