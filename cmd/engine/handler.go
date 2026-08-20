@@ -66,6 +66,22 @@ func ipListFiles(groups *config.Groups) []string {
 	return out
 }
 
+// hitPercent reports whether a p-percent chance fires: p <= 0 never, p >= 100
+// always, and exactly p times in 100 in between.
+//
+// Written out because "p > rand.Intn(100)+1" reads right and is not: rand+1 is
+// uniform over [1,100], so that form fires (p-1) times in 100 — prob 100 gives
+// 99% and prob 1 never fires at all.
+func hitPercent(p int) bool {
+	if p <= 0 {
+		return false
+	}
+	if p >= 100 {
+		return true
+	}
+	return rand.Intn(100)+1 <= p
+}
+
 // root — hot-path handler. Full request pipeline:
 // postback → api mode → blacklist → group/trash → antiflood → geo/detect →
 // uniqueness → router → bots → separation/remote/chance → distribution →
@@ -288,7 +304,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	// api_mac: mac code in the api response with probability Prob %.
 	mac := ""
 	if redirect == "api" && selStream != nil && selStream.APIMac.Enabled &&
-		selStream.APIMac.Code != "" && selStream.APIMac.Prob > rand.Intn(100)+1 {
+		selStream.APIMac.Code != "" && hitPercent(selStream.APIMac.Prob) {
 		mac = render.Expand(selStream.APIMac.Code, md)
 	}
 
