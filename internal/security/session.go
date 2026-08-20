@@ -3,6 +3,7 @@ package security
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"sync"
@@ -23,11 +24,28 @@ func EqualTokens(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
+// PasswordFingerprint returns a short fingerprint of the password hash — the
+// first 8 bytes of SHA-256, base64url. It is stored inside a session so that a
+// password change invalidates every session issued under the previous password:
+// the fingerprint travels with the session (including through Redis), needs no
+// clocks, no files and no extra store methods.
+//
+// It is not a secret and reveals nothing about the password: the argon2id hash
+// it is derived from already carries a random salt.
+func PasswordFingerprint(hash string) string {
+	sum := sha256.Sum256([]byte(hash))
+	return base64.RawURLEncoding.EncodeToString(sum[:8])
+}
+
 // Session — admin session data.
 type Session struct {
 	User    string
 	CSRF    string
 	Created time.Time
+	// PwFP — fingerprint of the password hash the session was issued under
+	// (see PasswordFingerprint). A session whose PwFP no longer matches the
+	// current password is rejected.
+	PwFP string
 }
 
 // SessionStore stores sessions by token. Implementations: MemoryStore (here) and

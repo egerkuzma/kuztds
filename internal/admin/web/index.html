@@ -309,6 +309,7 @@ function settings(){
     if(n!==n2){msg.innerHTML='<span class="err">passwords do not match</span>';return}
     const r=await api('/api/password',{method:'POST',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify({old:o,new:n})});
     const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.csrf)CSRF=j.csrf; // the session is reissued on password change
     msg.innerHTML=r.ok?'<span class="ok">password changed ✓</span>':'<span class="err">'+esc(j.error||'error')+'</span>';
   };
 }

@@ -160,23 +160,40 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	token, err1 := security.RandomToken()
-	csrf, err2 := security.RandomToken()
-	if err1 != nil || err2 != nil {
+	csrf, err := s.issueSession(w, r)
+	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	sess := security.Session{User: s.cfg.AdminUser, CSRF: csrf, Created: time.Now()}
+	writeJSON(w, http.StatusOK, map[string]string{"csrf": csrf})
+}
+
+// issueSession creates a fresh session bound to the current password, sets the
+// cookie and returns the new CSRF token.
+func (s *Server) issueSession(w http.ResponseWriter, r *http.Request) (string, error) {
+	token, err1 := security.RandomToken()
+	csrf, err2 := security.RandomToken()
+	if err1 != nil {
+		return "", err1
+	}
+	if err2 != nil {
+		return "", err2
+	}
+	sess := security.Session{
+		User:    s.cfg.AdminUser,
+		CSRF:    csrf,
+		Created: time.Now(),
+		PwFP:    security.PasswordFingerprint(s.currentHash()),
+	}
 	if err := s.cfg.Sessions.Create(r.Context(), token, sess, s.cfg.SessionTTL); err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal error")
-		return
+		return "", err
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: cookieName, Value: token, Path: "/",
 		HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteStrictMode,
 		Expires: time.Now().Add(s.cfg.SessionTTL),
 	})
-	writeJSON(w, http.StatusOK, map[string]string{"csrf": csrf})
+	return csrf, nil
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -212,9 +229,8 @@ func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	s.mu.Lock()
-	s.pwHash = hash
-	s.mu.Unlock()
+	// Persist first, switch in memory second: a failed write must not leave the
+	// process running on a password that survives no restart.
 	if s.cfg.PasswordFile != "" {
 		if err := os.WriteFile(s.cfg.PasswordFile, []byte(hash), 0o600); err != nil {
 			s.logWarn("password file write failed", "err", err)
@@ -222,7 +238,23 @@ func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "changed"})
+	s.mu.Lock()
+	s.pwHash = hash
+	s.mu.Unlock()
+
+	// Every session issued under the old password is now invalid, including
+	// this one — hand the caller a fresh cookie and CSRF token so the panel
+	// keeps working, and drop the old token from the store.
+	if c, err := r.Cookie(cookieName); err == nil {
+		_ = s.cfg.Sessions.Delete(r.Context(), c.Value)
+	}
+	csrf, err := s.issueSession(w, r)
+	if err != nil {
+		s.logWarn("session reissue after password change failed", "err", err)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "changed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "changed", "csrf": csrf})
 }
 
 // --- stats ---
@@ -518,6 +550,13 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		}
 		sess, ok, err := s.cfg.Sessions.Get(r.Context(), c.Value)
 		if err != nil || !ok {
+			writeErr(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		// A session issued under a previous password is dead: changing the
+		// password must kick out everyone who holds an older cookie.
+		if !security.EqualTokens(sess.PwFP, security.PasswordFingerprint(s.currentHash())) {
+			_ = s.cfg.Sessions.Delete(r.Context(), c.Value)
 			writeErr(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
