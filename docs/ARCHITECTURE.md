@@ -87,7 +87,8 @@ specific stream; bot_redirect serves bots a separate output.
 
 ## Configuration
 - Groups config: JSON file `KUZTDS_GROUPS_FILE` (source of truth).
-- The engine caches groups at startup (after editing the file — restart it).
+- The engine keeps groups in memory and re-reads the file when it changes,
+  on the same `KUZTDS_RELOAD_INTERVAL` ticker as the `.dat` lists. No restart.
 - The admin reads/writes the file on requests to `/api/groups` (live). The same
   file must be given to both the engine and the admin.
 - Secrets/settings — via `KUZTDS_*` environment variables (see `docs/USAGE.md`).

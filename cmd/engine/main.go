@@ -110,8 +110,9 @@ func main() {
 
 	// Group config (phase 6): JSON file. Without it — the built-in demo group.
 	var groups *config.Groups
-	if f := os.Getenv("KUZTDS_GROUPS_FILE"); f != "" {
-		if gg, err := config.LoadGroups(f); err != nil {
+	groupsFile := os.Getenv("KUZTDS_GROUPS_FILE")
+	if groupsFile != "" {
+		if gg, err := config.LoadGroups(groupsFile); err != nil {
 			log.Warn("groups file not loaded, using demo", "err", err)
 		} else {
 			groups = gg
@@ -121,9 +122,18 @@ func main() {
 
 	// Load the custom ip_list files referenced by group streams
 	// (besides the standard ipLists), so the per-stream IP filter works.
+	known := append([]string(nil), ipLists...)
 	if extra := ipListFiles(groups); len(extra) > 0 {
 		lists.Load(extra...)
+		known = append(known, extra...)
 		log.Info("extra ip lists loaded", "count", len(extra))
+	}
+
+	// Hot-reload of the groups config, like the .dat lists and signatures:
+	// edits saved in the admin panel go live within the reload interval
+	// instead of waiting for a restart.
+	if groups != nil {
+		go newGroupsWatcher(groupsFile, groups, lists, log, known).watch(ctx, reload)
 	}
 
 	// ClickHouse logs (phase 4): asynchronous batch writes. Optional.

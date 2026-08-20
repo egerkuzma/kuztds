@@ -76,6 +76,15 @@ Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
   trash mode — an empty 200 by default — while README and ARCHITECTURE had
   promised first-segment matching all along. `handler.go` + `routing_test.go`.
 
+- **Hot-reload of the groups config (2026-08-20):** the engine re-reads
+  `KUZTDS_GROUPS_FILE` when it changes and swaps it in atomically, on the same
+  `KUZTDS_RELOAD_INTERVAL` ticker as the `.dat` lists — `config.Groups.Replace`
+  finally has a caller. Admin edits go live without a restart. A malformed or
+  missing file is skipped and retried, leaving the running config in place, and
+  ip_list files a newly added stream references are loaded *before* the swap, so
+  the filter never goes live pointing at a list that was never read.
+  `cmd/engine/reload.go` + `reload_test.go`.
+
 ## Tests (coverage as of 2026-08-20)
 Run: `go test ./...` (unit) and `go test -tags=integration ./...` (with
 CH+Redis). `go vet ./...` — clean. Coverage command:
@@ -142,7 +151,7 @@ For an existing DB, apply migrations 002/003 via
 `docker exec -i <clickhouse-container> clickhouse-client ... --multiquery < file`.
 
 ## Notes
-- The admin and the engine must point to the SAME `KUZTDS_GROUPS_FILE`; the
-  engine caches groups at startup (after editing the file — restart the engine;
-  the admin reads live).
+- The admin and the engine must point to the SAME `KUZTDS_GROUPS_FILE`. The
+  admin reads and writes it live; the engine re-reads it when it changes, on the
+  `KUZTDS_RELOAD_INTERVAL` ticker. No restart needed.
 - Group: `id` = identifier and address `/<id>`; `name` — optional display name.

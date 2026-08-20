@@ -380,9 +380,11 @@ A group is reachable at `/<id>` (and at each alias). Example shape:
 ]
 ```
 
-You normally **edit groups in the admin UI** ("Groups" → pick a group or stream → "Save
-all"); the engine caches groups at startup and reloads them on its reload
-interval. See `configs/groups.example.json` and `configs/test_groups.json`.
+You normally **edit groups in the admin UI** ("Groups" → pick a group or stream →
+"Save all"). The engine notices the file changed and swaps the config in within
+`KUZTDS_RELOAD_INTERVAL` (1 min by default) — no restart. A malformed or missing
+file leaves the running config untouched. See `configs/groups.example.json` and
+`configs/test_groups.json`.
 
 ---
 
