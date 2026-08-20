@@ -29,6 +29,16 @@ A normative document: requirements + what's already done (✅) and what's planne
 - ✅ Cookie: `HttpOnly`, `Secure` (configurable), `SameSite=Strict`, limited TTL.
 - ✅ CSRF: double-submit token on unsafe methods (POST/PUT/DELETE).
 - ✅ Login rate-limit: Redis sliding window; no blocking `sleep`.
+- ✅ A password change revokes every session issued under the previous
+  password. Each session stores `PwFP` — a fingerprint of the argon2id hash it
+  was issued under — and the auth middleware rejects a session whose
+  fingerprint no longer matches the current hash.
+  **The binding is to the hash, not to the password.** argon2id salts randomly,
+  so a hash regenerated from the *same* password is a different hash and a
+  different fingerprint. Replacing `KUZTDS_ADMIN_PASSWORD_HASH` (or the
+  contents of `KUZTDS_ADMIN_PASSWORD_FILE`) therefore logs everyone out — even
+  when the password itself has not changed. Expect a re-login after any
+  redeploy that regenerates the hash.
 - ⏳ Forced change of the default password on first start.
 - ⏳ TOTP (RFC 6238) and admin IP allowlist.
 
