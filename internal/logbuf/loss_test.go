@@ -153,3 +153,96 @@ func TestBuffer_PushAfterRunExitsIsSilentlyLost(t *testing.T) {
 		t.Fatalf("Dropped() = %d, want 0 — the loss leaves no trace at all; this test pins the current behaviour", got)
 	}
 }
+
+// slowRecordingInserter blocks inside the insert until released and remembers
+// what actually made it into storage.
+type slowRecordingInserter struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+
+	mu     sync.Mutex
+	stored int
+}
+
+func newSlowRecordingInserter() *slowRecordingInserter {
+	return &slowRecordingInserter{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (s *slowRecordingInserter) InsertEvents(_ context.Context, batch []Event) error {
+	s.once.Do(func() { close(s.entered) })
+	<-s.release
+	s.mu.Lock()
+	s.stored += len(batch)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *slowRecordingInserter) Stored() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stored
+}
+
+// TestBuffer_FinalFlushOutlivesCancel documents the fourth loss path, and the
+// reason reordering cancel() and srv.Shutdown in cmd/engine/main.go is not
+// enough on its own. Run's farewell flush is synchronous: after ctx is
+// cancelled Run drains the channel and only then inserts, under a fresh
+// 30s context.WithTimeout of its own. Returning from Run is the only signal
+// that the batch actually landed — and nothing in main.go waits for it.
+// main.go calls cancel(), logs "engine stopped" and returns, so the process
+// exits while up to batchSize events are still in flight.
+func TestBuffer_FinalFlushOutlivesCancel(t *testing.T) {
+	ins := newSlowRecordingInserter()
+	// timer disabled and batchSize above n: the only flush is the one on cancel.
+	b := New(ins, 100, 1000, time.Hour, quietLogger())
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		b.Run(ctx)
+	}()
+
+	const n = 10
+	for i := 0; i < n; i++ {
+		b.Push(Event{Stream: "s"})
+	}
+	cancel()
+
+	select {
+	case <-ins.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the farewell flush was never entered")
+	}
+
+	// This is the instant main.go returns from cancel(). The batch is still
+	// inside InsertEvents: nothing is stored, nothing is counted as dropped,
+	// and Run has not returned. A process exiting here loses all n events.
+	if got := ins.Stored(); got != 0 {
+		t.Fatalf("stored at the moment cancel() returns = %d, want 0", got)
+	}
+	if got := b.Dropped(); got != 0 {
+		t.Fatalf("Dropped() = %d, want 0 — the in-flight batch leaves no trace either", got)
+	}
+	select {
+	case <-done:
+		t.Fatal("Run returned before the flush completed")
+	default:
+	}
+
+	// Only waiting for Run to return makes the events durable — and there is
+	// no way to wait for it: Run returns nothing and closes nothing.
+	close(ins.release)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after the flush was released")
+	}
+	if got := ins.Stored(); got != n {
+		t.Fatalf("stored after waiting for Run = %d, want %d", got, n)
+	}
+}
