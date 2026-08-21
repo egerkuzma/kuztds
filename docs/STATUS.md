@@ -105,11 +105,11 @@ CH+Redis). `go vet ./...` — clean. Coverage command:
 | internal/admin | 74.7% | login/CSRF/groups/lists/keys/password/export + file stores + SPA (web_test.go) |
 | internal/server | 73.2% | |
 | cmd/apiclient | 71.6% | round-trip with a fake TDS (`newClientHandler`) |
-| cmd/engine | 66.3% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios: all redirect types, all macros, bots, geo, filters, operators, distribution, limits, firewall, separation, schedule, chance, api mode, traffic matrix) |
+| cmd/engine | 66.1% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios: all redirect types, all macros, bots, geo, filters, operators, distribution, limits, firewall, separation, schedule, chance, api mode, traffic matrix) |
 | cmd/admin | 0% | only the `main()` wiring; the logic is in internal/admin |
 
 \* `internal/store` was not re-measured on 2026-08-20: ClickHouse was not
-running, so the `integration` tests skip (32.9% without them). The 77.0% figure
+running, so the `integration` tests skip (29.7% without them). The 77.0% figure
 is the last measurement with ClickHouse up.
 
 Refactor for testability: hot-path handlers were extracted from `main()`
