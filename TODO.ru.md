@@ -9,14 +9,6 @@
   - мониторинг свободного места на диске + уведомления в Telegram
   - очистка устаревших данных (в CH сейчас через TTL — пересмотреть при необходимости)
 
-## Тесты — СДЕЛАНО (2026-06-07)
-Покрытие добавлено по всем «дырам»; детали и таблица — в `docs/STATUS.md`.
-- [x] cmd/engine — httptest-прогон конвейера (вынос в `engineDeps.root`)
-- [x] internal/fetch — Get/GetCached/TTL/таймаут/ошибки
-- [x] internal/admin — хендлеры (login/CSRF/группы/списки/ключи/пароль/экспорт) + file-сторы
-- [x] internal/store — miniredis (sessions/LoginAllow/Rotate) + ClickHouse под `-tags=integration`
-- [x] cmd/apiclient — round-trip с фейковым TDS (вынос в `newClientHandler`)
-
 ## Мелкое / опционально
 - [ ] доп. тесты cmd/admin main()-обвязки (сейчас 0%; логика покрыта в internal/admin)
 - [ ] captcha / TOTP (Google Authenticator) для логина админки
