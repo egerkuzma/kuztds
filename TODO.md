@@ -9,14 +9,6 @@
   - free disk space monitoring + Telegram notifications
   - cleanup of stale data (currently via TTL in CH — revisit if needed)
 
-## Tests — DONE (2026-06-07)
-Coverage added across all gaps; details and the table — in `docs/STATUS.md`.
-- [x] cmd/engine — httptest pipeline run (extracted into `engineDeps.root`)
-- [x] internal/fetch — Get/GetCached/TTL/timeout/errors
-- [x] internal/admin — handlers (login/CSRF/groups/lists/keys/password/export) + file stores
-- [x] internal/store — miniredis (sessions/LoginAllow/Rotate) + ClickHouse under `-tags=integration`
-- [x] cmd/apiclient — round-trip with a fake TDS (extracted into `newClientHandler`)
-
 ## Minor / optional
 - [ ] extra tests for the cmd/admin main() wiring (currently 0%; logic covered in internal/admin)
 - [ ] captcha / TOTP (Google Authenticator) for admin login
