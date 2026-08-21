@@ -72,6 +72,7 @@ go run ./cmd/admin
 | `KUZTDS_KEYS_DIR` | directory for collected keywords |
 | `KUZTDS_TRASH_MODE` / `KUZTDS_TRASH_URL` | behavior for an unknown group (0=200,1=redirect,2=403,3=404) |
 | `KUZTDS_CURL_CACHE` | CURL redirect cache, minutes |
+| `KUZTDS_CURL_UA` | User-Agent the engine sends for CURL / `[REMOTE]` fetches |
 | `KUZTDS_RELOAD_INTERVAL` | `.dat` hot-reload period (`1m`) |
 
 ### admin
@@ -88,7 +89,8 @@ go run ./cmd/admin
 
 ### apiclient
 `KUZTDS_TDS_URL` (engine URL), `KUZTDS_API_KEY`, `KUZTDS_GROUP_ID`,
-`KUZTDS_APICLIENT_LISTEN`, `KUZTDS_TRUSTED_PROXIES`.
+`KUZTDS_APICLIENT_LISTEN`, `KUZTDS_TRUSTED_PROXIES`, `KUZTDS_COOKIE` (name of
+the uniqueness cookie the client sets, `ztu` by default).
 
 ## URLs the engine serves
 

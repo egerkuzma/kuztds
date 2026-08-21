@@ -524,7 +524,8 @@ navigation, **top-right** period picker, settings gear, user, and log-out.
   `X-Events-Lost-Detail: full=<n> insert=<n> late=<n>` (buffer overflow / failed
   insert / pushed during shutdown). The same counters are logged on exit.
 
-**Admin API** (session + CSRF protected): `POST /api/login`, `POST /api/logout`,
+**Admin API** (`GET /api/health` is open; the rest is session + CSRF protected):
+`POST /api/login`, `POST /api/logout`,
 `GET /api/me`, `POST /api/password`, `GET /api/stats/{summary,timeseries,
 breakdown}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/logs/export`,
 `DELETE /api/logs`, `GET /api/postbacks`, `GET /api/keys`,
