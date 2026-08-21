@@ -72,6 +72,7 @@ go run ./cmd/admin
 | `KUZTDS_KEYS_DIR` | каталог сбора ключевых слов |
 | `KUZTDS_TRASH_MODE` / `KUZTDS_TRASH_URL` | поведение для неизвестной группы (0=200,1=redirect,2=403,3=404) |
 | `KUZTDS_CURL_CACHE` | кэш CURL-редиректа, минут |
+| `KUZTDS_CURL_UA` | User-Agent, с которым движок ходит за CURL / `[REMOTE]` |
 | `KUZTDS_RELOAD_INTERVAL` | период hot-reload `.dat` (`1m`) |
 
 ### admin
@@ -88,7 +89,8 @@ go run ./cmd/admin
 
 ### apiclient
 `KUZTDS_TDS_URL` (URL движка), `KUZTDS_API_KEY`, `KUZTDS_GROUP_ID`,
-`KUZTDS_APICLIENT_LISTEN`, `KUZTDS_TRUSTED_PROXIES`.
+`KUZTDS_APICLIENT_LISTEN`, `KUZTDS_TRUSTED_PROXIES`, `KUZTDS_COOKIE` (имя cookie
+уникальности, которую ставит клиент; по умолчанию `ztu`).
 
 ## Ссылки, которые отдаёт движок
 

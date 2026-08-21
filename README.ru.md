@@ -527,7 +527,8 @@ http://your-host/?pb=YOUR_POSTBACK_KEY&cid=[CID]&profit=1.50
   неудачная вставка / запись во время остановки). Те же счётчики пишутся в лог
   при выходе.
 
-**Admin API** (за сессией + CSRF): `POST /api/login`, `POST /api/logout`,
+**Admin API** (`GET /api/health` открыт, остальное за сессией + CSRF):
+`POST /api/login`, `POST /api/logout`,
 `GET /api/me`, `POST /api/password`, `GET /api/stats/{summary,timeseries,
 breakdown}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/logs/export`,
 `DELETE /api/logs`, `GET /api/postbacks`, `GET /api/keys`,
