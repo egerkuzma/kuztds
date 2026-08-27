@@ -317,6 +317,11 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		mac = render.Expand(selStream.APIMac.Code, md)
 	}
 
+	// logRedirect is what the event carries. It tracks redirect except when a
+	// curl fetch fails: the visitor is then served something other than the
+	// partner's page, and the report must not call that an ordinary serve.
+	logRedirect := redirect
+
 	var res render.Result
 	if redirect == "curl" {
 		rules := ""
@@ -329,8 +334,18 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		if ct == "" {
 			ct = "text/html; charset=utf-8"
 		}
-		res = render.Result{Status: http.StatusOK, ContentType: ct,
-			Body: []byte(curlBody(d.fetcher, rctx, out, render.Expand(rules, md), d.curlCacheMin))}
+		body, ok := curlBody(d.fetcher, rctx, out, render.Expand(rules, md), d.curlCacheMin)
+		if ok {
+			res = render.Result{Status: http.StatusOK, ContentType: ct, Body: []byte(body)}
+		} else {
+			// No stream-level fallback exists for curl (unlike Remote.Reserved),
+			// so reuse the configured trash behaviour — the same answer the
+			// engine already gives when it cannot serve a group. Anything is
+			// better than a blank 200, which burns the click and hides it.
+			logRedirect = "curl_error"
+			res = trashResult(d.trashMode, d.trashURL)
+			d.log.Error("engine: curl fetch failed", "group", grp.ID, "stream", streamName, "url", out)
+		}
 	} else {
 		res = render.Do(redirect, out, render.Options{ContentType: ctype, Path: r.Host,
 			Country: country, City: g.City, Region: g.Region, Device: device,
@@ -341,7 +356,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	if d.logs != nil {
 		d.logs.Push(logbuf.Event{
 			Ts: time.Now(), GroupID: grp.ID, GroupName: grp.Name,
-			Stream: streamName, Out: out, Redirect: redirect, Device: device,
+			Stream: streamName, Out: out, Redirect: logRedirect, Device: device,
 			Operator: operator, Country: country, City: g.City, Region: g.Region,
 			Lang: v.Lang, Uniq: b2u8(unique), Bot: bot, IP: ip.String(),
 			Referer: v.Referer, UserAgent: ua, Domain: v.Domain, Keyword: v.Key,

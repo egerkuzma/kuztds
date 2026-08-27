@@ -37,14 +37,21 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 }
 
 // curlBody loads the page at URL and applies find/replace from rules
-// (lines "find|||replace"). Cached for curlCache minutes.
-func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCacheMin int) string {
+// (lines "find|||replace"). Cached for curlCache minutes. The bool reports
+// whether the fetch actually succeeded.
+//
+// Any error fails the whole call, including a non-2xx status. Get returns the
+// response body alongside the status error, so the previous "err != nil &&
+// body == ''" let an upstream error page through: a partner's 502 was rendered
+// into the visitor's response under our own 200, and the event log recorded an
+// ordinary serve. A failed fetch has no usable body, whatever its length.
+func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCacheMin int) (string, bool) {
 	ttl := time.Duration(curlCacheMin) * time.Minute
 	body, err := fc.GetCached("curl:"+url, ttl, func() (string, error) {
 		return fc.Get(ctx, url)
 	})
-	if err != nil && body == "" {
-		return ""
+	if err != nil {
+		return "", false
 	}
 	for _, ln := range strings.Split(rules, "\n") {
 		ln = strings.TrimRight(ln, "\r")
@@ -57,7 +64,7 @@ func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCach
 		}
 		body = replaceCI(body, find, repl)
 	}
-	return body
+	return body, true
 }
 
 // regexFirst compiles /pattern/flags and returns the first match group.
