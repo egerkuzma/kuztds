@@ -383,8 +383,14 @@ type limiter struct {
 	id  string
 }
 
+// Allowed both checks and consumes the stream's limit, in one atomic step.
+//
+// It is safe to have the side effect here because the limit is the last filter
+// in router.matches and Select returns the first matching stream: a true from
+// this call is the serve. There is no second call to record it with, and that is
+// the point — the pair it replaced could not be made race-free.
 func (l limiter) Allowed(stream string, rule config.LimitRule) bool {
-	ok, err := l.c.LimitAllowed(l.ctx, l.id, stream, rule)
+	ok, err := l.c.TakeLimit(l.ctx, l.id, stream, rule)
 	if err != nil {
 		return true // fail-open
 	}

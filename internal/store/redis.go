@@ -3,7 +3,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"net/netip"
 	"time"
 
@@ -72,52 +71,69 @@ func (c *Counters) Firewall(ctx context.Context, id string, ip netip.Addr, max i
 // defaultWindow — the fallback window for a counter configured without one.
 const defaultWindow = time.Minute
 
-// incrWithTTL increments key and guarantees it carries a TTL.
+// incrTTLScript increments a key and stamps the TTL on the first increment,
+// in one round trip.
 //
-// A counter key with no expiry never resets, so the rate limit it backs stops
-// being a limit and becomes a permanent block that survives until someone
-// flushes Redis by hand. If EXPIRE fails, the key is dropped instead of being
-// left immortal — the next request simply starts a fresh window, which matches
-// the fail-open policy of the rest of this package.
+// The TTL has to be set inside the same atomic step as the INCR. Done as two
+// client calls, a failure between them leaves a counter with no expiry, and a
+// rate limit backed by a key that never resets is not a limit but a permanent
+// block. The previous Go version compensated by deleting the key when EXPIRE
+// failed — throwing away a live counter to avoid an immortal one. With the two
+// operations in a single script there is nothing to compensate for.
+var incrTTLScript = redis.NewScript(`
+local n = redis.call('INCR', KEYS[1])
+if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return n
+`)
+
+// takeLimitScript takes one unit of the stream's serve limit: it increments the
+// counter only if it is still below the limit. Returns the new value, or -1 if
+// the limit is exhausted (in which case nothing was incremented).
+//
+// This replaces the LimitAllowed/RecordServe pair. Those read the counter and
+// incremented it in two separate round trips, so N concurrent requests could all
+// read the same under-the-limit value and all be served — the limit overshot by
+// as much as the concurrency. Checking and taking in one script removes the
+// window entirely.
+//
+// The counter must not move when the limit is exhausted. router.matches applies
+// the limit as its last filter and Select returns the first matching stream, so
+// an increment here means this stream is the one being served. Incrementing on a
+// refusal instead would let an exhausted stream that sits early in the list be
+// bumped by every request for the rest of the window, and the daily report would
+// show many times more serves than actually happened.
+var takeLimitScript = redis.NewScript(`
+local lim = tonumber(ARGV[2])
+local n = tonumber(redis.call('GET', KEYS[1]) or '0')
+if n >= lim then return -1 end
+n = redis.call('INCR', KEYS[1])
+if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return n
+`)
+
+// incrWithTTL increments key and guarantees it carries a TTL.
 func (c *Counters) incrWithTTL(ctx context.Context, key string, ttl time.Duration) (int64, error) {
-	n, err := c.rdb.Incr(ctx, key).Result()
-	if err != nil {
-		return 0, err
-	}
-	if n == 1 {
-		if err := c.rdb.Expire(ctx, key, ttl).Err(); err != nil {
-			_ = c.rdb.Del(ctx, key).Err()
-			return 0, err
-		}
-	}
-	return n, nil
+	return incrTTLScript.Run(ctx, c.rdb, []string{key}, ttl.Milliseconds()).Int64()
 }
 
-// LimitAllowed reports whether the stream's display limit has not been exhausted (read-only).
-// The counter is incremented in RecordServe upon the actual serve.
-func (c *Counters) LimitAllowed(ctx context.Context, id, stream string, rule config.LimitRule) (bool, error) {
+// TakeLimit reports whether the stream's serve limit still had room, consuming
+// one unit if it did. Atomic: the check and the increment are a single script.
+//
+// Called from the router as the last filter, i.e. exactly once per request per
+// stream, and only for the stream that is about to be served.
+//
+// On a Redis failure it returns true — fail-open, like the rest of this package:
+// a broken counter must not stop traffic.
+func (c *Counters) TakeLimit(ctx context.Context, id, stream string, rule config.LimitRule) (bool, error) {
 	if !rule.Enabled || rule.Count <= 0 {
 		return true, nil
 	}
-	key, _ := c.limitKey(id, stream, rule)
-	v, err := c.rdb.Get(ctx, key).Int()
-	if errors.Is(err, redis.Nil) {
-		return true, nil // counter does not exist yet
-	}
+	key, ttl := c.limitKey(id, stream, rule)
+	n, err := takeLimitScript.Run(ctx, c.rdb, []string{key}, ttl.Milliseconds(), rule.Count).Int64()
 	if err != nil {
 		return true, err // fail-open
 	}
-	return v < rule.Count, nil
-}
-
-// RecordServe increments the stream's display counter (called after the serve).
-func (c *Counters) RecordServe(ctx context.Context, id, stream string, rule config.LimitRule) error {
-	if !rule.Enabled || rule.Count <= 0 {
-		return nil
-	}
-	key, ttl := c.limitKey(id, stream, rule)
-	_, err := c.incrWithTTL(ctx, key, ttl)
-	return err
+	return n >= 0, nil
 }
 
 // Rotate returns an index in [0,mod) for even distribution (evenly):

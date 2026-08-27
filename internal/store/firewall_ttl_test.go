@@ -42,17 +42,17 @@ func TestPeriodLimitZeroSecondsStillExpires(t *testing.T) {
 	ctx := context.Background()
 	rule := config.LimitRule{Enabled: true, Type: 2, Count: 1, Seconds: 0}
 
-	if err := c.RecordServe(ctx, "g1", "s1", rule); err != nil {
-		t.Fatalf("RecordServe: %v", err)
+	if ok, err := c.TakeLimit(ctx, "g1", "s1", rule); !ok || err != nil {
+		t.Fatalf("first serve must be allowed: ok=%v err=%v", ok, err)
 	}
-	if ok, _ := c.LimitAllowed(ctx, "g1", "s1", rule); ok {
+	if ok, _ := c.TakeLimit(ctx, "g1", "s1", rule); ok {
 		t.Fatal("after 1 serve the limit (1) must be exhausted")
 	}
 	if ttl := mr.TTL("lim:p:g1:s1"); ttl <= 0 {
 		t.Fatalf("period limit key must carry a TTL, got %v", ttl)
 	}
 	mr.FastForward(25 * time.Hour)
-	if ok, _ := c.LimitAllowed(ctx, "g1", "s1", rule); !ok {
+	if ok, _ := c.TakeLimit(ctx, "g1", "s1", rule); !ok {
 		t.Error("after the period expires the stream must serve again")
 	}
 }

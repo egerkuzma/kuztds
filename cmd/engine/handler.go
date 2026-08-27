@@ -247,9 +247,9 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 			redirect = s.Out.Redirect
 			outRaw = s.Out.Out
 		}
-		if d.counters != nil && s.Rules.Limit.Enabled {
-			_ = d.counters.RecordServe(rctx, grp.ID, s.Name, s.Rules.Limit)
-		}
+		// The limit counter is consumed inside the router (limiter.Allowed):
+		// selecting the stream and taking its limit are one event, so there is
+		// nothing to record here.
 	}
 
 	// 4.5) Bot detection by the selected stream's toggles (after selection).
