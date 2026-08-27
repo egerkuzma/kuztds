@@ -22,6 +22,11 @@ type Client struct {
 	now func() time.Time
 	c   map[string]entry
 	sf  singleflight.Group
+
+	// backstop is the ceiling applied to a shared load whose caller brought no
+	// deadline of its own. It matches hc.Timeout, so it introduces no new limit
+	// — it only makes the existing one explicit and, crucially, unconditional.
+	backstop time.Duration
 }
 
 type entry struct {
@@ -95,10 +100,11 @@ func NewWithLimits(ua string, l Limits) *Client {
 		ExpectContinueTimeout: time.Second,
 	}
 	return &Client{
-		hc:  &http.Client{Transport: tr, Timeout: l.Backstop},
-		ua:  ua,
-		now: time.Now,
-		c:   make(map[string]entry),
+		hc:       &http.Client{Transport: tr, Timeout: l.Backstop},
+		ua:       ua,
+		now:      time.Now,
+		c:        make(map[string]entry),
+		backstop: l.Backstop,
 	}
 }
 
@@ -194,14 +200,24 @@ func (c *Client) GetCached(ctx context.Context, key string, ttl time.Duration, l
 	// The cancel func belongs to the load, not to this stack frame. Deferring it
 	// here would mean the first caller to return tears down the context the shared
 	// fetch is running on — the original bug, reintroduced through the back door.
-	dl, hasDeadline := ctx.Deadline()
+	//
+	// The deadline is unconditional on purpose. An earlier version only wrapped
+	// when the caller brought a deadline of its own, which left two paths: with
+	// one, cancel was real and the bug above was reachable; without one, cancel
+	// was a no-op and it was not. A test written on a bare context.Background took
+	// the harmless path and certified the broken version. A branch that decides
+	// whether a bug is reachable is worse than the bug — so there is no branch.
+	// hc.Timeout bounds the fetch either way; this only says so out loud.
+	//
+	// Real time, not c.now(): the injectable clock exists to age cache entries in
+	// tests, and a context deadline is not something it should be able to move.
+	dl, ok := ctx.Deadline()
+	if !ok {
+		dl = time.Now().Add(c.backstop)
+	}
 	ch := c.sf.DoChan(key, func() (any, error) {
-		lctx := context.WithoutCancel(ctx)
-		if hasDeadline {
-			var cancel context.CancelFunc
-			lctx, cancel = context.WithDeadline(lctx, dl)
-			defer cancel()
-		}
+		lctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), dl)
+		defer cancel()
 		val, err := load(lctx)
 		if err != nil {
 			return val, err

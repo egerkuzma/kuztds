@@ -234,8 +234,11 @@ func TestWaiterLeavesOnItsOwnCancel(t *testing.T) {
 // tears down the context the shared fetch is running on — the leader-cancellation
 // bug back through the door, now triggered by a waiter leaving early.
 //
-// It only bites when the caller carries a deadline, which on the hot path is
-// always: remoteTimeout and curlTimeout put one on every call.
+// Kept alongside TestLeaderCancellationDoesNotPoisonWaiters, which covers the
+// same defect from a caller with no deadline. Both reach it now: the deadline is
+// applied unconditionally, so there is no longer a path on which cancel is a
+// no-op and the bug is unreachable. That branch is what let the bare-Background
+// version of this test certify a broken implementation.
 func TestDeadlinedLeaderLeavingDoesNotKillTheLoad(t *testing.T) {
 	c := New("ua")
 	leaderCtx, leaderCancel := context.WithTimeout(context.Background(), 5*time.Second)
