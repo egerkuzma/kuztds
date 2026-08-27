@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // Client is a thread-safe loader with a cache.
@@ -19,6 +21,7 @@ type Client struct {
 	mu  sync.Mutex
 	now func() time.Time
 	c   map[string]entry
+	sf  singleflight.Group
 }
 
 type entry struct {
@@ -141,41 +144,67 @@ func (c *Client) Get(ctx context.Context, url string) (string, error) {
 // once in a very long while, or never.
 const maxEntries = 50000
 
-// GetCached returns the value from the cache by key or loads it via load()
-// and caches it for ttl. On a load error the cache is not updated.
+// GetCached returns the value from the cache by key or loads it via load and
+// caches it for ttl. On a load error the cache is not updated.
 //
 // A ttl of zero or less means "do not cache" in both directions: nothing is
-// read and nothing is stored. That is how the caller declines to cache a
-// template whose expansion is unique per visitor.
-func (c *Client) GetCached(key string, ttl time.Duration, load func() (string, error)) (string, error) {
-	if ttl > 0 {
-		c.mu.Lock()
-		if e, ok := c.c[key]; ok {
-			if c.now().Before(e.exp) {
-				c.mu.Unlock()
-				return e.val, nil
-			}
-			// Expired. Drop it now: an entry that is never asked for again
-			// would otherwise sit in the map for the life of the process,
-			// which is how a TTL cache turns into a log of everything it has
-			// ever seen.
-			delete(c.c, key)
+// read, nothing is stored, and nothing is shared. That is how the caller
+// declines to cache a template whose expansion is unique per visitor — see
+// render.Cacheable. Sharing such a key would be pure overhead: no two requests
+// ask for the same one.
+//
+// For a cacheable key, concurrent misses collapse into a single load. Once
+// MaxConnsPerHost is in place, connections to a partner are a finite resource,
+// and fifty copies of one request occupy slots that fifty different requests
+// need. Deduplication stopped being a courtesy to the upstream and became a way
+// of not spending our own budget on the same answer fifty times.
+func (c *Client) GetCached(ctx context.Context, key string, ttl time.Duration, load func(context.Context) (string, error)) (string, error) {
+	if ttl <= 0 {
+		return load(ctx)
+	}
+	c.mu.Lock()
+	if e, ok := c.c[key]; ok {
+		if c.now().Before(e.exp) {
+			c.mu.Unlock()
+			return e.val, nil
 		}
-		c.mu.Unlock()
+		// Expired. Drop it now: an entry that is never asked for again would
+		// otherwise sit in the map for the life of the process, which is how a
+		// TTL cache turns into a log of everything it has ever seen.
+		delete(c.c, key)
 	}
-	val, err := load()
-	if err != nil {
-		return val, err
+	c.mu.Unlock()
+
+	// The shared load must not run on the leader's request context.
+	//
+	// singleflight hands the leader's work to every waiter, cancellation
+	// included. With the caller's context that means one visitor closing the tab
+	// cancels the fetch that fifty other visitors are waiting on, and all of them
+	// fall to the fallback for a reason that has nothing to do with them or with
+	// the upstream. Detaching keeps the deadline — the fetch is still bounded —
+	// and drops only the cancellation that is not theirs to inherit.
+	lctx := context.WithoutCancel(ctx)
+	var cancel context.CancelFunc = func() {}
+	if dl, ok := ctx.Deadline(); ok {
+		lctx, cancel = context.WithDeadline(lctx, dl)
 	}
-	if ttl > 0 {
+	defer cancel()
+
+	v, err, _ := c.sf.Do(key, func() (any, error) {
+		val, err := load(lctx)
+		if err != nil {
+			return val, err
+		}
 		c.mu.Lock()
 		if len(c.c) >= maxEntries {
 			c.c = make(map[string]entry, maxEntries/8)
 		}
 		c.c[key] = entry{val: val, exp: c.now().Add(ttl)}
 		c.mu.Unlock()
-	}
-	return val, nil
+		return val, nil
+	})
+	val, _ := v.(string)
+	return val, err
 }
 
 // Len reports the number of cached entries, expired ones included. Exposed so

@@ -61,8 +61,8 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 	if !render.Cacheable(rm.URL) {
 		ttl = 0
 	}
-	val, err := fc.GetCached("remote:"+u, ttl, func() (string, error) {
-		body, err := fc.Get(ctx, u)
+	val, err := fc.GetCached(ctx, "remote:"+u, ttl, func(fctx context.Context) (string, error) {
+		body, err := fc.Get(fctx, u)
 		if err != nil {
 			return "", err
 		}
@@ -88,9 +88,9 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 // ordinary serve. A failed fetch has no usable body, whatever its length.
 func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCacheMin int) (string, bool) {
 	ttl := time.Duration(curlCacheMin) * time.Minute
-	body, err := fc.GetCached("curl:"+url, ttl, func() (string, error) {
-		fctx, cancel := context.WithTimeout(ctx, curlTimeout)
-		defer cancel()
+	cctx, ccancel := context.WithTimeout(ctx, curlTimeout)
+	defer ccancel()
+	body, err := fc.GetCached(cctx, "curl:"+url, ttl, func(fctx context.Context) (string, error) {
 		return fc.Get(fctx, url)
 	})
 	if err != nil {

@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ func newTestClient() (*Client, *clock) {
 func TestGetCachedTTLZeroDoesNotStore(t *testing.T) {
 	c, _ := newTestClient()
 	for i := 0; i < 1000; i++ {
-		_, err := c.GetCached("k"+strconv.Itoa(i), 0, func() (string, error) { return "v", nil })
+		_, err := c.GetCached(context.Background(), "k"+strconv.Itoa(i), 0, func(context.Context) (string, error) { return "v", nil })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,9 +40,9 @@ func TestGetCachedTTLZeroDoesNotStore(t *testing.T) {
 // stopped being served when they expired but stayed in the map forever.
 func TestGetCachedDropsExpiredOnLookup(t *testing.T) {
 	c, ck := newTestClient()
-	load := func() (string, error) { return "v", nil }
+	load := func(context.Context) (string, error) { return "v", nil }
 
-	if _, err := c.GetCached("k", time.Minute, load); err != nil {
+	if _, err := c.GetCached(context.Background(), "k", time.Minute, load); err != nil {
 		t.Fatal(err)
 	}
 	if n := c.Len(); n != 1 {
@@ -51,7 +52,7 @@ func TestGetCachedDropsExpiredOnLookup(t *testing.T) {
 	// Past the TTL the entry is dead weight; asking for it must clear it, not
 	// just refuse to serve it.
 	ck.t = ck.t.Add(2 * time.Minute)
-	if _, err := c.GetCached("k", time.Minute, load); err != nil {
+	if _, err := c.GetCached(context.Background(), "k", time.Minute, load); err != nil {
 		t.Fatal(err)
 	}
 	if n := c.Len(); n != 1 {
@@ -61,11 +62,11 @@ func TestGetCachedDropsExpiredOnLookup(t *testing.T) {
 	// An expired entry nobody refetches is only cleared if it is looked up. The
 	// cap is what covers the rest — see TestGetCachedCap.
 	c2, ck2 := newTestClient()
-	if _, err := c2.GetCached("gone", time.Minute, load); err != nil {
+	if _, err := c2.GetCached(context.Background(), "gone", time.Minute, load); err != nil {
 		t.Fatal(err)
 	}
 	ck2.t = ck2.t.Add(2 * time.Minute)
-	if _, err := c2.GetCached("gone", 0, load); err != nil {
+	if _, err := c2.GetCached(context.Background(), "gone", 0, load); err != nil {
 		t.Fatal(err)
 	}
 	if n := c2.Len(); n != 1 {
@@ -77,9 +78,9 @@ func TestGetCachedDropsExpiredOnLookup(t *testing.T) {
 // grow the map without bound.
 func TestGetCachedCap(t *testing.T) {
 	c, _ := newTestClient()
-	load := func() (string, error) { return "v", nil }
+	load := func(context.Context) (string, error) { return "v", nil }
 	for i := 0; i < maxEntries+100; i++ {
-		if _, err := c.GetCached("k"+strconv.Itoa(i), time.Hour, load); err != nil {
+		if _, err := c.GetCached(context.Background(), "k"+strconv.Itoa(i), time.Hour, load); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -96,9 +97,9 @@ func TestGetCachedCap(t *testing.T) {
 func TestGetCachedStillCaches(t *testing.T) {
 	c, _ := newTestClient()
 	calls := 0
-	load := func() (string, error) { calls++; return "v", nil }
+	load := func(context.Context) (string, error) { calls++; return "v", nil }
 	for i := 0; i < 10; i++ {
-		if _, err := c.GetCached("same", time.Hour, load); err != nil {
+		if _, err := c.GetCached(context.Background(), "same", time.Hour, load); err != nil {
 			t.Fatal(err)
 		}
 	}
