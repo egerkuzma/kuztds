@@ -26,7 +26,28 @@ func cacheMinFor(outRaw string, curlCacheMin int) int {
 
 // remoteValue loads the value for [REMOTE]:
 // URL substitutions, caching by Cache seconds, regex parsing, fallback to reserved.
+// Timeouts on the outbound fetches are set here, not inside fetch, because the
+// number follows from the cost of giving up — and only the caller knows it.
+//
+// [REMOTE] has rm.Reserved: failing is instant and free, so waiting longer only
+// buys a slightly better value at the price of every visitor's page. curl has no
+// value of its own — failing means trashResult, which on the default
+// KUZTDS_TRASH_MODE=0 is a burnt click. Expensive to give up means it is worth
+// waiting longer.
+//
+// The coupling to watch: http.Client's timeout covers waiting for a connection,
+// so it is also what bounds the queue behind MaxConnsPerHost. A long curl
+// timeout is a long queue — under saturation everyone waits the full duration to
+// be handed the trash page. The numbers below are a starting point; they are the
+// two knobs to turn under real load.
+const (
+	remoteTimeout = 2 * time.Second
+	curlTimeout   = 8 * time.Second
+)
+
 func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, country, city, lang, key string) string {
+	ctx, cancel := context.WithTimeout(ctx, remoteTimeout)
+	defer cancel()
 	u := rm.URL
 	u = strings.ReplaceAll(u, "[IP]", ip)
 	u = strings.ReplaceAll(u, "[COUNTRY]", country)
@@ -68,7 +89,9 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCacheMin int) (string, bool) {
 	ttl := time.Duration(curlCacheMin) * time.Minute
 	body, err := fc.GetCached("curl:"+url, ttl, func() (string, error) {
-		return fc.Get(ctx, url)
+		fctx, cancel := context.WithTimeout(ctx, curlTimeout)
+		defer cancel()
+		return fc.Get(fctx, url)
 	})
 	if err != nil {
 		return "", false
