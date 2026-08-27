@@ -22,7 +22,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -36,6 +35,7 @@ import (
 	"github.com/egerkuzma/kuztds/internal/logbuf"
 	"github.com/egerkuzma/kuztds/internal/render"
 	"github.com/egerkuzma/kuztds/internal/router"
+	"github.com/egerkuzma/kuztds/internal/seplist"
 	"github.com/egerkuzma/kuztds/internal/server"
 	"github.com/egerkuzma/kuztds/internal/store"
 )
@@ -120,6 +120,13 @@ func main() {
 		}
 	}
 
+	// Separation lists, held in memory for the same reason as the ip lists: the
+	// previous implementation re-read and re-scanned the whole file on every
+	// request that carried a keyword.
+	seps := seplist.NewSet(dataDir, log)
+	seps.Load(separationFiles(groups)...)
+	go seps.Watch(ctx, reload)
+
 	// Load the custom ip_list files referenced by group streams
 	// (besides the standard ipLists), so the per-stream IP filter works.
 	known := append([]string(nil), ipLists...)
@@ -133,7 +140,7 @@ func main() {
 	// edits saved in the admin panel go live within the reload interval
 	// instead of waiting for a restart.
 	if groups != nil {
-		go newGroupsWatcher(groupsFile, groups, lists, log, known).watch(ctx, reload)
+		go newGroupsWatcher(groupsFile, groups, lists, seps, log, known).watch(ctx, reload)
 	}
 
 	// ClickHouse logs (phase 4): asynchronous batch writes. Optional.
@@ -160,7 +167,7 @@ func main() {
 	}
 
 	d := &engineDeps{
-		log: log, lists: lists, sigs: sigs, geores: geores, counters: counters,
+		log: log, lists: lists, sigs: sigs, seps: seps, geores: geores, counters: counters,
 		groups: groups, logs: logs, chConn: chConn, fetcher: fetcher,
 		dataDir: dataDir, keysDir: keysDir, postbackKey: postbackKey, apiKey: apiKey,
 		trashMode: trashMode, trashURL: trashURL, curlCacheMin: curlCacheMin,
@@ -338,27 +345,6 @@ func variantIndex(i, n int) int {
 		return 0
 	}
 	return i
-}
-
-// separationOut looks up a key in the dataDir/file file (lines "key;out") and
-// returns the out on a substring match).
-func separationOut(dataDir, file, key string) string {
-	b, err := os.ReadFile(filepath.Join(dataDir, file))
-	if err != nil {
-		return ""
-	}
-	lk := strings.ToLower(key)
-	for _, ln := range strings.Split(string(b), "\n") {
-		ln = strings.TrimSpace(ln)
-		kw, out, ok := strings.Cut(ln, ";")
-		if !ok || kw == "" {
-			continue
-		}
-		if strings.Contains(lk, strings.ToLower(kw)) {
-			return strings.TrimSpace(out)
-		}
-	}
-	return ""
 }
 
 // trashResult builds the response for an unknown/disabled group (trash modes).

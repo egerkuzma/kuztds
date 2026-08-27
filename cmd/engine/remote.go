@@ -83,7 +83,7 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 //
 // Any error fails the whole call, including a non-2xx status. Get returns the
 // response body alongside the status error, so the previous "err != nil &&
-// body == ''" let an upstream error page through: a partner's 502 was rendered
+// body == ”" let an upstream error page through: a partner's 502 was rendered
 // into the visitor's response under our own 200, and the event log recorded an
 // ordinary serve. A failed fetch has no usable body, whatever its length.
 func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCacheMin int) (string, bool) {
