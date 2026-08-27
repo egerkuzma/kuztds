@@ -8,7 +8,21 @@ import (
 
 	"github.com/egerkuzma/kuztds/internal/config"
 	"github.com/egerkuzma/kuztds/internal/fetch"
+	"github.com/egerkuzma/kuztds/internal/render"
 )
+
+// cacheMinFor returns the curl cache lifetime for an out template, or 0 when
+// the template expands into a different URL for every visitor.
+//
+// It has to be called on the raw template. By the time curlBody sees the URL,
+// render.Expand has already run and [CID] has become a random string: there is
+// no macro left to notice, only a key nobody will ever ask for again.
+func cacheMinFor(outRaw string, curlCacheMin int) int {
+	if !render.Cacheable(outRaw) {
+		return 0
+	}
+	return curlCacheMin
+}
 
 // remoteValue loads the value for [REMOTE]:
 // URL substitutions, caching by Cache seconds, regex parsing, fallback to reserved.
@@ -19,7 +33,13 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 	u = strings.ReplaceAll(u, "[CITY]", city)
 	u = strings.ReplaceAll(u, "[LANG]", lang)
 	u = strings.ReplaceAll(u, "[KEY]", key)
+	// Cache only when the URL template expands into a bounded set of strings.
+	// rm.URL is checked, not u: by now the substitutions are done and there is
+	// nothing left to recognise.
 	ttl := time.Duration(rm.Cache) * time.Second
+	if !render.Cacheable(rm.URL) {
+		ttl = 0
+	}
 	val, err := fc.GetCached("remote:"+u, ttl, func() (string, error) {
 		body, err := fc.Get(ctx, u)
 		if err != nil {

@@ -64,14 +64,41 @@ func (c *Client) Get(ctx context.Context, url string) (string, error) {
 	return string(b), nil
 }
 
+// maxEntries caps the cache. Beyond it the map is dropped whole rather than
+// evicted entry by entry.
+//
+// The crude version is the right one here. An LRU is a second data structure to
+// keep in step with the map under the same lock, and it would be buying accuracy
+// for a cache whose real fix is upstream: callers are expected to pass ttl <= 0
+// for templates that expand per visitor (see render.Cacheable), so what remains
+// is a small, slow-growing set of low-cardinality keys. The cap exists so a
+// caller that forgets cannot run the process out of memory, not to make eviction
+// clever.
+//
+// The cost is honest: a reset throws away hot entries too, and the requests that
+// follow all miss at once. That is why the number is large — this should happen
+// once in a very long while, or never.
+const maxEntries = 50000
+
 // GetCached returns the value from the cache by key or loads it via load()
 // and caches it for ttl. On a load error the cache is not updated.
+//
+// A ttl of zero or less means "do not cache" in both directions: nothing is
+// read and nothing is stored. That is how the caller declines to cache a
+// template whose expansion is unique per visitor.
 func (c *Client) GetCached(key string, ttl time.Duration, load func() (string, error)) (string, error) {
 	if ttl > 0 {
 		c.mu.Lock()
-		if e, ok := c.c[key]; ok && c.now().Before(e.exp) {
-			c.mu.Unlock()
-			return e.val, nil
+		if e, ok := c.c[key]; ok {
+			if c.now().Before(e.exp) {
+				c.mu.Unlock()
+				return e.val, nil
+			}
+			// Expired. Drop it now: an entry that is never asked for again
+			// would otherwise sit in the map for the life of the process,
+			// which is how a TTL cache turns into a log of everything it has
+			// ever seen.
+			delete(c.c, key)
 		}
 		c.mu.Unlock()
 	}
@@ -81,10 +108,21 @@ func (c *Client) GetCached(key string, ttl time.Duration, load func() (string, e
 	}
 	if ttl > 0 {
 		c.mu.Lock()
+		if len(c.c) >= maxEntries {
+			c.c = make(map[string]entry, maxEntries/8)
+		}
 		c.c[key] = entry{val: val, exp: c.now().Add(ttl)}
 		c.mu.Unlock()
 	}
 	return val, nil
+}
+
+// Len reports the number of cached entries, expired ones included. Exposed so
+// the cap can be asserted in tests rather than trusted.
+func (c *Client) Len() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.c)
 }
 
 type httpError struct{ code int }
