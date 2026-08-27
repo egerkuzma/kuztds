@@ -175,22 +175,33 @@ func (c *Client) GetCached(ctx context.Context, key string, ttl time.Duration, l
 	}
 	c.mu.Unlock()
 
-	// The shared load must not run on the leader's request context.
+	// Detach the work, not the wait. The two need opposite treatment, and doing
+	// only one of them is wrong in a different way each time.
 	//
-	// singleflight hands the leader's work to every waiter, cancellation
-	// included. With the caller's context that means one visitor closing the tab
-	// cancels the fetch that fifty other visitors are waiting on, and all of them
-	// fall to the fallback for a reason that has nothing to do with them or with
-	// the upstream. Detaching keeps the deadline — the fetch is still bounded —
-	// and drops only the cancellation that is not theirs to inherit.
-	lctx := context.WithoutCancel(ctx)
-	var cancel context.CancelFunc = func() {}
-	if dl, ok := ctx.Deadline(); ok {
-		lctx, cancel = context.WithDeadline(lctx, dl)
-	}
-	defer cancel()
-
-	v, err, _ := c.sf.Do(key, func() (any, error) {
+	// The work must not run on a request context. singleflight hands the leader's
+	// result to every waiter, cancellation included, so one visitor closing the
+	// tab would kill the fetch fifty others are waiting on — a fallback for a
+	// reason that is neither theirs nor the upstream's. The load therefore runs on
+	// a context with the deadline preserved and the cancellation dropped.
+	//
+	// The wait must stay on the caller's own context. Do blocks until the fetch
+	// finishes, so a detached load would pin every waiter's goroutine for the full
+	// deadline even after its visitor has gone — eight seconds each on the curl
+	// path. MaxConnsPerHost does not help there: it counts sockets, not goroutines.
+	// DoChan lets each waiter leave on its own ctx.Done() while the shared load
+	// carries on for whoever is still there.
+	//
+	// The cancel func belongs to the load, not to this stack frame. Deferring it
+	// here would mean the first caller to return tears down the context the shared
+	// fetch is running on — the original bug, reintroduced through the back door.
+	dl, hasDeadline := ctx.Deadline()
+	ch := c.sf.DoChan(key, func() (any, error) {
+		lctx := context.WithoutCancel(ctx)
+		if hasDeadline {
+			var cancel context.CancelFunc
+			lctx, cancel = context.WithDeadline(lctx, dl)
+			defer cancel()
+		}
 		val, err := load(lctx)
 		if err != nil {
 			return val, err
@@ -203,8 +214,16 @@ func (c *Client) GetCached(ctx context.Context, key string, ttl time.Duration, l
 		c.mu.Unlock()
 		return val, nil
 	})
-	val, _ := v.(string)
-	return val, err
+
+	select {
+	case r := <-ch:
+		val, _ := r.Val.(string)
+		return val, r.Err
+	case <-ctx.Done():
+		// This visitor is gone. The load keeps running for the others; the
+		// channel is buffered, so nothing leaks by not reading it.
+		return "", ctx.Err()
+	}
 }
 
 // Len reports the number of cached entries, expired ones included. Exposed so

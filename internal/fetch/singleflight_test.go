@@ -173,3 +173,113 @@ func TestSharedErrorReachesEveryWaiter(t *testing.T) {
 		t.Errorf("a failed load cached %d entries, want 0", c.Len())
 	}
 }
+
+// TestWaiterLeavesOnItsOwnCancel is the other half of "detach the work, not the
+// wait". Do blocks until the fetch finishes, so a detached load would hold every
+// waiter's goroutine for the full deadline even after its visitor has gone —
+// eight seconds each on the curl path, and MaxConnsPerHost does not help because
+// it counts sockets, not goroutines.
+func TestWaiterLeavesOnItsOwnCancel(t *testing.T) {
+	c := New("ua")
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	load := func(fctx context.Context) (string, error) {
+		once.Do(func() { close(started) })
+		select {
+		case <-release:
+			return "v", nil
+		case <-fctx.Done():
+			return "", fctx.Err()
+		}
+	}
+
+	go func() { _, _ = c.GetCached(context.Background(), "k", time.Minute, load) }()
+	<-started
+
+	wctx, wcancel := context.WithCancel(context.Background())
+	done := make(chan time.Duration, 1)
+	go func() {
+		start := time.Now()
+		_, err := c.GetCached(wctx, "k", time.Minute, load)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("waiter got %v, want context.Canceled", err)
+		}
+		done <- time.Since(start)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	wcancel() // this visitor closes the tab
+
+	select {
+	case el := <-done:
+		if el > time.Second {
+			t.Errorf("waiter took %v to leave after its own cancel", el)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("waiter did not leave on its own cancel — it is pinned to the shared load")
+	}
+
+	// The shared load was not harmed by the waiter leaving.
+	close(release)
+	v, err := c.GetCached(context.Background(), "k", time.Minute, load)
+	if err != nil || v != "v" {
+		t.Errorf("shared load result = %q, %v", v, err)
+	}
+}
+
+// TestDeadlinedLeaderLeavingDoesNotKillTheLoad is the trap that opens up the
+// moment Do becomes DoChan. The load's context needs a cancel func, and if that
+// cancel is deferred in GetCached's own frame, the first caller to walk away
+// tears down the context the shared fetch is running on — the leader-cancellation
+// bug back through the door, now triggered by a waiter leaving early.
+//
+// It only bites when the caller carries a deadline, which on the hot path is
+// always: remoteTimeout and curlTimeout put one on every call.
+func TestDeadlinedLeaderLeavingDoesNotKillTheLoad(t *testing.T) {
+	c := New("ua")
+	leaderCtx, leaderCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer leaderCancel()
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	load := func(fctx context.Context) (string, error) {
+		once.Do(func() { close(started) })
+		select {
+		case <-release:
+			return "v", nil
+		case <-fctx.Done():
+			return "", fctx.Err()
+		}
+	}
+
+	go func() { _, _ = c.GetCached(leaderCtx, "k", time.Minute, load) }()
+	<-started
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errs []error
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := c.GetCached(context.Background(), "k", time.Minute, load)
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}()
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	leaderCancel() // the leader, which owns the deadline, walks away
+	time.Sleep(100 * time.Millisecond)
+	close(release) // the upstream answers
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("waiter %d got %v — the leader's cancel func tore down the shared load", i, err)
+		}
+	}
+}
