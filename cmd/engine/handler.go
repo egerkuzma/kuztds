@@ -334,7 +334,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		if ct == "" {
 			ct = "text/html; charset=utf-8"
 		}
-		body, ok := curlBody(d.fetcher, rctx, out, render.Expand(rules, md), d.curlCacheMin)
+		body, ok := curlBody(d.fetcher, rctx, out, render.Expand(rules, md), cacheMinFor(outRaw, d.curlCacheMin))
 		if ok {
 			res = render.Result{Status: http.StatusOK, ContentType: ct, Body: []byte(body)}
 		} else {
