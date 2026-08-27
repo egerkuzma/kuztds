@@ -67,17 +67,18 @@ func TestLimitDaily(t *testing.T) {
 	ctx := context.Background()
 	rule := config.LimitRule{Enabled: true, Type: 1, Count: 2}
 
-	// before any serves the limit is free
-	if ok, _ := c.LimitAllowed(ctx, "g1", "s1", rule); !ok {
+	// the first two takes fit under the limit of 2
+	if ok, _ := c.TakeLimit(ctx, "g1", "s1", rule); !ok {
 		t.Fatal("initially the limit must be free")
 	}
-	_ = c.RecordServe(ctx, "g1", "s1", rule) // 1
-	_ = c.RecordServe(ctx, "g1", "s1", rule) // 2
-	if ok, _ := c.LimitAllowed(ctx, "g1", "s1", rule); ok {
+	if ok, _ := c.TakeLimit(ctx, "g1", "s1", rule); !ok {
+		t.Fatal("the second serve must still fit under the limit of 2")
+	}
+	if ok, _ := c.TakeLimit(ctx, "g1", "s1", rule); ok {
 		t.Error("after 2 serves the limit (2) must be exhausted")
 	}
 	// a different stream is not affected
-	if ok, _ := c.LimitAllowed(ctx, "g1", "s2", rule); !ok {
+	if ok, _ := c.TakeLimit(ctx, "g1", "s2", rule); !ok {
 		t.Error("a different stream's limit must not be affected")
 	}
 }
