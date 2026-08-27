@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -64,16 +65,77 @@ type entry struct {
 	exp time.Time
 }
 
-// New creates a client with the given User-Agent. log may be nil.
-func New(ua string, log *slog.Logger) *Client {
+// Limits caps the outbound side of the client.
+type Limits struct {
+	// MaxConnsPerHost bounds simultaneous connections to one host. This is the
+	// bulkhead: past it, requests wait on the transport instead of each opening
+	// its own socket. Zero means the package default.
+	MaxConnsPerHost int
+	// MaxIdleConnsPerHost is how many warm connections are kept for reuse.
+	// Zero means the package default.
+	MaxIdleConnsPerHost int
+	// Backstop is the ceiling on a single request when the caller's context
+	// carries no deadline of its own. Callers on the hot path are expected to
+	// set a tighter one; this only keeps a forgotten call from hanging forever.
+	Backstop time.Duration
+}
+
+// Defaults for Limits. The shape is deliberate; the numbers are a starting
+// point, not a measurement.
+//
+// http.DefaultTransport keeps MaxIdleConnsPerHost at 2, which is fine for a
+// program that talks to many hosts occasionally and wrong for this one: every
+// visitor whose stream fetches from the same partner competes for those two
+// slots, and the rest open a fresh connection — a TCP and TLS handshake per
+// request, plus the sockets they leave in TIME_WAIT.
+//
+// MaxConnsPerHost has no default in net/http at all: unlimited. That is the
+// part that takes the engine down rather than merely slowing it. A partner that
+// stalls does not fail requests, it holds them, and without a ceiling every
+// held request is another connection and another goroutine parked in the
+// handler until its deadline.
+const (
+	defaultMaxConnsPerHost     = 128
+	defaultMaxIdleConnsPerHost = 64
+	defaultBackstop            = 10 * time.Second
+)
+
+// New creates a client with the given User-Agent and the default limits.
+// log may be nil.
+func New(ua string, log *slog.Logger) *Client { return NewWithLimits(ua, log, Limits{}) }
+
+// NewWithLimits creates a client with explicit outbound limits. log may be nil.
+func NewWithLimits(ua string, log *slog.Logger, l Limits) *Client {
 	if ua == "" {
 		ua = "Mozilla/5.0"
 	}
 	if log == nil {
 		log = slog.Default()
 	}
+	if l.MaxConnsPerHost <= 0 {
+		l.MaxConnsPerHost = defaultMaxConnsPerHost
+	}
+	if l.MaxIdleConnsPerHost <= 0 {
+		l.MaxIdleConnsPerHost = defaultMaxIdleConnsPerHost
+	}
+	if l.MaxIdleConnsPerHost > l.MaxConnsPerHost {
+		l.MaxIdleConnsPerHost = l.MaxConnsPerHost
+	}
+	if l.Backstop <= 0 {
+		l.Backstop = defaultBackstop
+	}
+	tr := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		MaxConnsPerHost:       l.MaxConnsPerHost,
+		MaxIdleConnsPerHost:   l.MaxIdleConnsPerHost,
+		MaxIdleConns:          l.MaxIdleConnsPerHost * 8,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	}
 	return &Client{
-		hc:      &http.Client{Timeout: 10 * time.Second},
+		hc:      &http.Client{Transport: tr, Timeout: l.Backstop},
 		ua:      ua,
 		log:     log,
 		now:     time.Now,
