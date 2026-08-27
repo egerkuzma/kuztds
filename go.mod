@@ -9,6 +9,7 @@ require (
 	github.com/oschwald/maxminddb-golang v1.13.1
 	github.com/redis/go-redis/v9 v9.20.0
 	golang.org/x/crypto v0.52.0
+	golang.org/x/sync v0.22.0
 )
 
 require (
