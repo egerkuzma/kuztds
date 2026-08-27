@@ -8,6 +8,7 @@ import (
 
 	"github.com/egerkuzma/kuztds/internal/config"
 	"github.com/egerkuzma/kuztds/internal/ipindex"
+	"github.com/egerkuzma/kuztds/internal/seplist"
 )
 
 // groupsWatcher re-reads the groups config when its file changes and swaps it
@@ -27,6 +28,7 @@ type groupsWatcher struct {
 	path   string
 	groups *config.Groups
 	lists  *ipindex.Set
+	seps   *seplist.Set
 	log    *slog.Logger
 
 	stamp  fileStamp
@@ -41,8 +43,8 @@ type fileStamp struct {
 // newGroupsWatcher builds a watcher for an already-loaded config. known is the
 // set of ip list names loaded at startup, so a reload only pulls in files it
 // has not seen before.
-func newGroupsWatcher(path string, groups *config.Groups, lists *ipindex.Set, log *slog.Logger, known []string) *groupsWatcher {
-	w := &groupsWatcher{path: path, groups: groups, lists: lists, log: log, loaded: map[string]bool{}}
+func newGroupsWatcher(path string, groups *config.Groups, lists *ipindex.Set, seps *seplist.Set, log *slog.Logger, known []string) *groupsWatcher {
+	w := &groupsWatcher{path: path, groups: groups, lists: lists, seps: seps, log: log, loaded: map[string]bool{}}
 	for _, n := range known {
 		w.loaded[n] = true
 	}
@@ -81,6 +83,12 @@ func (w *groupsWatcher) reload() (bool, error) {
 		w.lists.Load(name)
 		w.loaded[name] = true
 		w.log.Info("groups reload: ip list loaded", "name", name)
+	}
+	// Same for separation lists: a rule added through the admin panel would
+	// otherwise point at a file the engine never read and silently match
+	// nothing, which looks exactly like "no keyword matched".
+	if w.seps != nil {
+		w.seps.Load(separationFiles(fresh)...)
 	}
 	w.groups.Replace(fresh)
 	w.stamp = *st

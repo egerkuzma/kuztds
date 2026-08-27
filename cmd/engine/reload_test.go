@@ -29,7 +29,7 @@ func newWatcherFor(t *testing.T, dir, path string, groups *config.Groups) *group
 	t.Helper()
 	lists := ipindex.NewSet(dir, discardLog())
 	lists.Load(ipLists...)
-	return newGroupsWatcher(path, groups, lists, discardLog(), append(append([]string(nil), ipLists...), ipListFiles(groups)...))
+	return newGroupsWatcher(path, groups, lists, nil, discardLog(), append(append([]string(nil), ipLists...), ipListFiles(groups)...))
 }
 
 func TestGroupsReloadPicksUpEdits(t *testing.T) {
@@ -135,7 +135,7 @@ func TestGroupsReloadLoadsNewlyReferencedIPList(t *testing.T) {
 	groups, _ := config.LoadGroups(path)
 	lists := ipindex.NewSet(dir, discardLog())
 	lists.Load(ipLists...)
-	w := newGroupsWatcher(path, groups, lists, discardLog(), ipLists)
+	w := newGroupsWatcher(path, groups, lists, nil, discardLog(), ipLists)
 
 	// Not referenced yet → not loaded.
 	if _, ok := lists.Lookup("vip", netip.MustParseAddr("9.9.9.9")); ok {

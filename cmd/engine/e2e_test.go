@@ -16,6 +16,7 @@ import (
 	"github.com/egerkuzma/kuztds/internal/fetch"
 	"github.com/egerkuzma/kuztds/internal/geo"
 	"github.com/egerkuzma/kuztds/internal/ipindex"
+	"github.com/egerkuzma/kuztds/internal/seplist"
 	"github.com/egerkuzma/kuztds/internal/server"
 	"github.com/egerkuzma/kuztds/internal/store"
 	"github.com/redis/go-redis/v9"
@@ -66,8 +67,10 @@ func newEng(t *testing.T, groups *config.Groups, h engHarness) http.Handler {
 	lists.Load(ipLists...)
 	lists.Load(ipListFiles(groups)...) // custom ip_list files from the groups
 	sigs := detect.NewSignatures(dir, log)
+	seps := seplist.NewSet(dir, log)
+	seps.Load(separationFiles(groups)...)
 	d := &engineDeps{
-		log: log, lists: lists, sigs: sigs, geores: geo.Nop{}, groups: groups,
+		log: log, lists: lists, sigs: sigs, seps: seps, geores: geo.Nop{}, groups: groups,
 		dataDir: dir, keysDir: dir, postbackKey: "pb", apiKey: "k",
 		fetcher: fetch.New(""), trashMode: h.trashMode, trashURL: h.trashURL,
 	}
