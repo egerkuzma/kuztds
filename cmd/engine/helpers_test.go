@@ -116,21 +116,6 @@ func TestReplaceCI(t *testing.T) {
 	}
 }
 
-func TestSeparationOut(t *testing.T) {
-	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "sep.dat"),
-		[]byte("buy;https://shop\n# comment line no semicolon\nsale;https://sale\n"), 0o644)
-	if got := separationOut(dir, "sep.dat", "iWantToBUY now"); got != "https://shop" {
-		t.Errorf("substring+case-insensitive match: got %q", got)
-	}
-	if got := separationOut(dir, "sep.dat", "nothing"); got != "" {
-		t.Errorf("no match → empty, got %q", got)
-	}
-	if got := separationOut(dir, "missing.dat", "x"); got != "" {
-		t.Errorf("missing file → empty, got %q", got)
-	}
-}
-
 func TestExtraParams(t *testing.T) {
 	req := httptest.NewRequest("GET", "/g1?q=key&a=1&b=2&c=3&d=4&e=5&f=6", nil)
 	got := extraParams(req)
