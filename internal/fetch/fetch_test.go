@@ -40,7 +40,7 @@ func TestGetNon2xxReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error on 404")
 	}
-	if body != "nope" {
+	if body != "" {
 		t.Errorf("body still returned on error: %q", body)
 	}
 	if err.Error() == "" {

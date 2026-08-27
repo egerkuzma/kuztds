@@ -54,8 +54,12 @@ func (c *Client) Get(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// A non-2xx body is never content: it is the upstream's error page. Both
+	// callers treat it as a failure, and returning it alongside the error only
+	// lets a caller with a sloppy condition render someone else's 502 as a
+	// normal response. Drop the body — there is nothing to be right about.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return string(b), &httpError{resp.StatusCode}
+		return "", &httpError{resp.StatusCode}
 	}
 	return string(b), nil
 }
