@@ -343,3 +343,44 @@ func TestBuffer_CloseCancelsTheInsertItGivesUpOn(t *testing.T) {
 		t.Fatalf("losses = %+v, want Insert=%d — a batch Close gave up on must still be counted", l, n)
 	}
 }
+
+// TestBuffer_CloseWithADeadContextStillAccounts covers the path a shared
+// shutdown budget makes routine: srv.Shutdown spends the whole deadline and
+// Close is handed a context that is already expired.
+//
+// Close must still shut the door, drain b.in and close the batch queue. Giving
+// up early left the queue open — the writer sat on range forever, wrDone never
+// closed, and everything in b.in walked out past all four counters, which is
+// the exact under-reporting this whole change is about.
+func TestBuffer_CloseWithADeadContextStillAccounts(t *testing.T) {
+	ins := &fakeInserter{}
+	b := New(ins, 100, 1000, time.Hour, quietLogger())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go b.Run(ctx)
+
+	const n = 25
+	for i := 0; i < n; i++ {
+		b.Push(Event{Stream: "s"})
+	}
+
+	dead, dcancel := context.WithCancel(context.Background())
+	dcancel() // expired before Close is even called
+
+	start := time.Now()
+	err := b.Close(dead)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("Close with a dead context must report that it ran out of time")
+	}
+	// No insertGrace wait: the writer is healthy, it just needed the queue closed.
+	if elapsed > insertGrace {
+		t.Fatalf("Close took %v — it waited on a writer that was never stuck", elapsed)
+	}
+	// Every event is accounted for: either stored or counted, never neither.
+	stored, lost := int64(ins.Total()), b.Dropped()
+	if stored+lost != n {
+		t.Fatalf("stored=%d lost=%+v — %d events went missing", stored, b.Losses(), n-stored-lost)
+	}
+}

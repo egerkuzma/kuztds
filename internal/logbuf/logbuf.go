@@ -85,6 +85,7 @@ type Buffer struct {
 	closed    chan struct{}
 	closeOnce sync.Once
 	runDone   chan struct{} // Run returned
+	drained   chan struct{} // Close finished with b.in: the writer may wind down
 	wrDone    chan struct{} // the writer returned: nothing is in flight
 
 	// insertCtx is the parent of every insert, so Close can reach into a batch
@@ -138,7 +139,7 @@ func New(ins Inserter, capacity, batchSize int, flushEvery time.Duration, log *s
 		depth = 2
 	}
 	ictx, icancel := context.WithCancel(context.Background())
-	return &Buffer{
+	b := &Buffer{
 		insertCtx:    ictx,
 		cancelInsert: icancel,
 
@@ -150,8 +151,13 @@ func New(ins Inserter, capacity, batchSize int, flushEvery time.Duration, log *s
 		log:        log,
 		closed:     make(chan struct{}),
 		runDone:    make(chan struct{}),
+		drained:    make(chan struct{}),
 		wrDone:     make(chan struct{}),
 	}
+	// The writer belongs to the buffer, not to Run: Close has to be able to
+	// finish the queue whatever happened to the accumulator.
+	go b.write()
+	return b
 }
 
 // Push puts an event into the buffer without blocking. On overflow — drops it
@@ -196,7 +202,6 @@ func (b *Buffer) Losses() Losses {
 // anything — all of that belongs to Close, which owns one budget and one door.
 // Two goroutines draining the same channel would tear a batch in half.
 func (b *Buffer) Run(ctx context.Context) {
-	go b.write()
 	defer close(b.runDone)
 	t := time.NewTicker(b.flushEvery)
 	defer t.Stop()
@@ -230,10 +235,18 @@ func (b *Buffer) Run(ctx context.Context) {
 func (b *Buffer) Close(ctx context.Context) error {
 	b.closeOnce.Do(func() {
 		close(b.closed)
+		// Wait for Run, deadline or not. Run answers b.closed from a loop that
+		// never blocks, so this is short — and skipping it would mean draining
+		// b.in alongside a live accumulator, which tears a batch in half. An
+		// expired ctx is a reason to stop waiting for storage, never a reason
+		// to skip the bookkeeping: everything below still has to be counted.
 		select {
 		case <-b.runDone:
-		case <-ctx.Done():
-			return // Run still holds the channel: closing b.batches now would race it
+		case <-time.After(insertGrace):
+			// Run was never started, or is wedged. Press on: the queue still
+			// has to be wound up, or the writer waits forever and nothing in
+			// b.in is ever counted.
+			b.log.Error("logbuf: the accumulator did not stop; draining alongside it")
 		}
 		batch := make([]Event, 0, b.batchSize)
 		for drained := false; !drained; {
@@ -248,7 +261,7 @@ func (b *Buffer) Close(ctx context.Context) error {
 			}
 		}
 		b.queue(ctx, &batch)
-		close(b.batches)
+		close(b.drained)
 	})
 	select {
 	case <-b.wrDone:
@@ -291,6 +304,14 @@ func (b *Buffer) queue(ctx context.Context, batch *[]Event) {
 	if cp == nil {
 		return
 	}
+	// Try without waiting first: a ctx that is already expired must still get
+	// the batch as far as the queue, otherwise a shutdown that started late
+	// throws away events the writer had room for.
+	select {
+	case b.batches <- cp:
+		return
+	default:
+	}
 	select {
 	case b.batches <- cp:
 	case <-ctx.Done():
@@ -311,10 +332,27 @@ func (b *Buffer) take(batch *[]Event) []Event {
 	return cp
 }
 
-// write inserts queued batches until the queue is closed.
+// write inserts queued batches until Close says the queue is complete, then
+// empties what is left and returns.
+//
+// b.batches is never closed. Run and Close both send on it, and ordering two
+// senders against a close is exactly the kind of shutdown-only race that a test
+// exercising one path at a time will not catch — the price of getting it wrong
+// is a panic in production. A separate done-signal costs one channel and cannot
+// be got wrong.
 func (b *Buffer) write() {
 	defer close(b.wrDone)
-	for cp := range b.batches {
+	for {
+		var cp []Event
+		select {
+		case cp = <-b.batches:
+		case <-b.drained:
+			select {
+			case cp = <-b.batches:
+			default:
+				return
+			}
+		}
 		ctx, cancel := context.WithTimeout(b.insertCtx, insertTimeout)
 		err := b.ins.InsertEvents(ctx, cp)
 		cancel()

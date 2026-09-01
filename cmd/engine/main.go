@@ -198,6 +198,10 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
+	// Two budgets, not one. The phases are sequential, so a single shared
+	// deadline means the log drain gets whatever the HTTP drain left over —
+	// and a server that used all ten seconds handed logbuf a dead context,
+	// i.e. no chance to write the last batch at all.
 	sctx, scancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer scancel()
 	// Stop serving before stopping the log buffer, otherwise in-flight requests
@@ -207,7 +211,9 @@ func main() {
 		// Close owns the shutdown: it shuts the door, drains and waits for the
 		// writer, all inside the same budget. cancel() below stays as a backstop
 		// for the case where Close gave up with work still in flight.
-		if err := logs.Close(sctx); err != nil {
+		lctx, lcancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer lcancel()
+		if err := logs.Close(lctx); err != nil {
 			log.Warn("logbuf: final flush did not finish within the shutdown deadline", "err", err)
 		}
 		cancel()
