@@ -48,6 +48,10 @@ var ipLists = []string{
 	"wap", // carriers (with labels like #beeline etc.)
 }
 
+// shutdownPhase bounds each of the two sequential shutdown phases: draining
+// in-flight requests, then draining the log buffer.
+const shutdownPhase = 10 * time.Second
+
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -173,7 +177,7 @@ func main() {
 		if logs != nil {
 			l := logs.Losses()
 			w.Header().Set("X-Events-Lost", strconv.FormatInt(l.Total(), 10))
-			w.Header().Set("X-Events-Lost-Detail", fmt.Sprintf("full=%d insert=%d late=%d", l.Full, l.Insert, l.Late))
+			w.Header().Set("X-Events-Lost-Detail", fmt.Sprintf("full=%d queue=%d insert=%d late=%d", l.Full, l.Queue, l.Insert, l.Late))
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -198,25 +202,37 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	sctx, scancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Two budgets, not one. The phases are sequential, so a single shared
+	// deadline means the log drain gets whatever the HTTP drain left over —
+	// and a server that used all of it handed logbuf a dead context, i.e. no
+	// chance to write the last batch at all.
+	//
+	// Worst case is therefore 2 * shutdownPhase, and the supervisor has to
+	// allow for it: Docker's default is a SIGKILL ten seconds after SIGTERM,
+	// which would land in the middle of the log drain. See README, "Shutdown
+	// budget".
+	sctx, scancel := context.WithTimeout(context.Background(), shutdownPhase)
 	defer scancel()
 	// Stop serving before stopping the log buffer, otherwise in-flight requests
 	// keep pushing events into a buffer nobody drains any more.
 	_ = srv.Shutdown(sctx)
-	cancel()
 	if logs != nil {
-		// Wait for the final flush, but only within the shutdown budget: a dead
-		// ClickHouse would otherwise hold the process for its own 30s timeout.
-		select {
-		case <-logs.Done():
-		case <-sctx.Done():
-			log.Warn("logbuf: final flush did not finish within the shutdown deadline")
+		// Close owns the shutdown: it shuts the door, drains and waits for the
+		// writer, all inside the same budget. cancel() below stays as a backstop
+		// for the case where Close gave up with work still in flight.
+		lctx, lcancel := context.WithTimeout(context.Background(), shutdownPhase)
+		defer lcancel()
+		if err := logs.Close(lctx); err != nil {
+			log.Warn("logbuf: final flush did not finish within the shutdown deadline", "err", err)
 		}
+		cancel()
 		l := logs.Losses()
 		log.Info("engine stopped", "events_lost", l.Total(),
-			"lost_full", l.Full, "lost_insert", l.Insert, "lost_late", l.Late)
+			"lost_full", l.Full, "lost_queue", l.Queue,
+			"lost_insert", l.Insert, "lost_late", l.Late)
 		return
 	}
+	cancel()
 	log.Info("engine stopped")
 }
 
