@@ -3,6 +3,7 @@ package fetch
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -189,5 +190,39 @@ func TestGetCachedFailedLoadIsNotCached(t *testing.T) {
 	}
 	if n := calls.Load(); n != 3 {
 		t.Fatalf("upstream called %d times, want 3 — a failure must not be cached", n)
+	}
+}
+
+// TestGetCachedTTLZeroDoesNotCollapse guards the meaning of ttl 0. It says
+// "answer this one per visitor", not merely "do not keep the answer": a Remote
+// on Cache: 0 is a per-visitor decision, and without [IP] in the template every
+// visitor shares the key. Collapsing there would hand one draw to a whole burst
+// of arrivals, which is a change of behaviour, not an optimisation.
+func TestGetCachedTTLZeroDoesNotCollapse(t *testing.T) {
+	c := New("")
+	load := newBlockingLoad("body")
+
+	const n = 5
+	var ready, wg sync.WaitGroup
+	ready.Add(n)
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			ready.Done()
+			_, _ = c.GetCached(context.Background(), "k", 0, load.fn)
+		}()
+	}
+	ready.Wait()
+	<-load.entered
+	// Everyone fetches for themselves; wait for the last one to arrive.
+	for load.calls.Load() < n {
+		runtime.Gosched()
+	}
+	close(load.release)
+	wg.Wait()
+
+	if got := load.calls.Load(); got != n {
+		t.Fatalf("upstream called %d times for %d callers at ttl 0, want %d", got, n, n)
 	}
 }

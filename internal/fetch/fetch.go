@@ -96,19 +96,25 @@ func (c *Client) Get(ctx context.Context, url string) (string, error) {
 // gets a hit instead of starting over. Storing in the caller instead would make
 // an abandoned fetch ten seconds of work thrown away.
 func (c *Client) GetCached(ctx context.Context, key string, ttl time.Duration, load func(context.Context) (string, error)) (string, error) {
-	if ttl > 0 {
-		if v, ok := c.lookup(key); ok {
-			return v, nil
-		}
+	if ttl <= 0 {
+		// ttl 0 is the operator saying "answer this one per visitor", not just
+		// "do not keep it". A Remote configured with Cache: 0 is a per-visitor
+		// decision — capacity, price, which offer is next in the rotation — and
+		// a shared key would otherwise hand one draw to a whole burst of
+		// arrivals. Collapsing and storing are separate questions: a value we
+		// decline to keep because it is too big is still the same value for
+		// everyone and should collapse. A value declared per-visitor must not.
+		return load(ctx)
+	}
+	if v, ok := c.lookup(key); ok {
+		return v, nil
 	}
 	ch := c.sf.DoChan(key, func() (any, error) {
 		v, err := load(context.Background())
 		if err != nil {
 			return "", err
 		}
-		if ttl > 0 {
-			c.store(key, v, ttl)
-		}
+		c.store(key, v, ttl)
 		return v, nil
 	})
 	select {
