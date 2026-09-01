@@ -278,9 +278,18 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// remote: load [REMOTE] from an external URL (cache, regex, fallback).
+	// The value itself is spliced in after render.Expand, below: it is the
+	// partner's response, not our template, and Expand's "substituted values
+	// are never rescanned" rule only covers what Expand itself substitutes.
+	remoteVal, wantRemote := "", false
 	if !botServed && selStream != nil && selStream.Remote.Enabled && strings.Contains(outRaw, "[REMOTE]") {
-		rv := remoteValue(d.fetcher, rctx, selStream.Remote, ip.String(), country, g.City, v.Lang, v.Key)
-		outRaw = strings.ReplaceAll(outRaw, "[REMOTE]", rv)
+		remoteVal, wantRemote = remoteValue(d.fetcher, rctx, selStream.Remote, ip.String(), country, g.City, v.Lang, v.Key), true
+		// "|||" is the distribution separator, applied to the template by
+		// pickOut. A remote value carrying it would otherwise let the partner
+		// choose which variant we serve; treat it as a bad response instead.
+		if strings.Contains(remoteVal, "|||") {
+			remoteVal = selStream.Remote.Reserved
+		}
 	}
 
 	// chance: for javascript/js_selection — show with probability chance %.
@@ -309,6 +318,9 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		Domain: v.Domain, UserAgent: ua, CID: cid, Pars: pars,
 		DataDir: d.dataDir}
 	out := render.Expand(outRaw, md)
+	if wantRemote {
+		out = strings.ReplaceAll(out, "[REMOTE]", remoteVal)
+	}
 
 	// api_mac: mac code in the api response with probability Prob %.
 	mac := ""
