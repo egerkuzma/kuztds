@@ -173,7 +173,7 @@ func main() {
 		if logs != nil {
 			l := logs.Losses()
 			w.Header().Set("X-Events-Lost", strconv.FormatInt(l.Total(), 10))
-			w.Header().Set("X-Events-Lost-Detail", fmt.Sprintf("full=%d insert=%d late=%d", l.Full, l.Insert, l.Late))
+			w.Header().Set("X-Events-Lost-Detail", fmt.Sprintf("full=%d queue=%d insert=%d late=%d", l.Full, l.Queue, l.Insert, l.Late))
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -203,20 +203,21 @@ func main() {
 	// Stop serving before stopping the log buffer, otherwise in-flight requests
 	// keep pushing events into a buffer nobody drains any more.
 	_ = srv.Shutdown(sctx)
-	cancel()
 	if logs != nil {
-		// Wait for the final flush, but only within the shutdown budget: a dead
-		// ClickHouse would otherwise hold the process for its own 30s timeout.
-		select {
-		case <-logs.Done():
-		case <-sctx.Done():
-			log.Warn("logbuf: final flush did not finish within the shutdown deadline")
+		// Close owns the shutdown: it shuts the door, drains and waits for the
+		// writer, all inside the same budget. cancel() below stays as a backstop
+		// for the case where Close gave up with work still in flight.
+		if err := logs.Close(sctx); err != nil {
+			log.Warn("logbuf: final flush did not finish within the shutdown deadline", "err", err)
 		}
+		cancel()
 		l := logs.Losses()
 		log.Info("engine stopped", "events_lost", l.Total(),
-			"lost_full", l.Full, "lost_insert", l.Insert, "lost_late", l.Late)
+			"lost_full", l.Full, "lost_queue", l.Queue,
+			"lost_insert", l.Insert, "lost_late", l.Late)
 		return
 	}
+	cancel()
 	log.Info("engine stopped")
 }
 
