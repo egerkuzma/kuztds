@@ -48,6 +48,10 @@ var ipLists = []string{
 	"wap", // carriers (with labels like #beeline etc.)
 }
 
+// shutdownPhase bounds each of the two sequential shutdown phases: draining
+// in-flight requests, then draining the log buffer.
+const shutdownPhase = 10 * time.Second
+
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -200,9 +204,14 @@ func main() {
 	<-stop
 	// Two budgets, not one. The phases are sequential, so a single shared
 	// deadline means the log drain gets whatever the HTTP drain left over —
-	// and a server that used all ten seconds handed logbuf a dead context,
-	// i.e. no chance to write the last batch at all.
-	sctx, scancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// and a server that used all of it handed logbuf a dead context, i.e. no
+	// chance to write the last batch at all.
+	//
+	// Worst case is therefore 2 * shutdownPhase, and the supervisor has to
+	// allow for it: Docker's default is a SIGKILL ten seconds after SIGTERM,
+	// which would land in the middle of the log drain. See README, "Shutdown
+	// budget".
+	sctx, scancel := context.WithTimeout(context.Background(), shutdownPhase)
 	defer scancel()
 	// Stop serving before stopping the log buffer, otherwise in-flight requests
 	// keep pushing events into a buffer nobody drains any more.
@@ -211,7 +220,7 @@ func main() {
 		// Close owns the shutdown: it shuts the door, drains and waits for the
 		// writer, all inside the same budget. cancel() below stays as a backstop
 		// for the case where Close gave up with work still in flight.
-		lctx, lcancel := context.WithTimeout(context.Background(), 10*time.Second)
+		lctx, lcancel := context.WithTimeout(context.Background(), shutdownPhase)
 		defer lcancel()
 		if err := logs.Close(lctx); err != nil {
 			log.Warn("logbuf: final flush did not finish within the shutdown deadline", "err", err)
