@@ -51,7 +51,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(Config{
+	s, err := New(Config{
 		AdminUser:    "admin",
 		PasswordHash: hash,
 		Sessions:     security.NewMemoryStore(),
@@ -61,6 +61,9 @@ func newTestServer(t *testing.T) *httptest.Server {
 		SessionTTL:   time.Hour,
 		CookieSecure: false,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
 	return srv

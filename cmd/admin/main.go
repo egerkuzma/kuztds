@@ -89,9 +89,18 @@ func main() {
 		}
 	}
 
+	// A hash we cannot use is a reason not to start. Booting anyway means every
+	// login answers "invalid credentials" and the operator hunts a password
+	// that is not the problem.
+	app, err := admin.New(cfg)
+	if err != nil {
+		log.Error("admin api not started", "err", err)
+		os.Exit(1)
+	}
+
 	srv := &http.Server{
 		Addr:              getenv("KUZTDS_ADMIN_LISTEN", ":8090"),
-		Handler:           admin.New(cfg).Handler(),
+		Handler:           app.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
