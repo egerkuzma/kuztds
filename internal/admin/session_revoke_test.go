@@ -103,7 +103,7 @@ func TestPasswordChangeSurvivesRestart(t *testing.T) {
 	}
 
 	newServer := func() *httptest.Server {
-		s := New(Config{
+		s, err := New(Config{
 			AdminUser:    "admin",
 			PasswordHash: hash,
 			PasswordFile: pwFile,
@@ -111,6 +111,9 @@ func TestPasswordChangeSurvivesRestart(t *testing.T) {
 			Limiter:      allowAll{},
 			SessionTTL:   time.Hour,
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		srv := httptest.NewServer(s.Handler())
 		t.Cleanup(srv.Close)
 		return srv

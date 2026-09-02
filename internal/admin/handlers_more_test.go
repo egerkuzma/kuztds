@@ -61,12 +61,15 @@ func fullServer(t *testing.T, limiter LoginLimiter) (*httptest.Server, *fakeGrou
 	if limiter == nil {
 		limiter = allowAll{}
 	}
-	s := New(Config{
+	s, err := New(Config{
 		AdminUser: "admin", PasswordHash: hash,
 		Sessions: security.NewMemoryStore(),
 		Stats:    fakeStats{}, Groups: fg, Lists: fl, Keys: fakeKeys{},
 		Limiter: limiter, SessionTTL: time.Hour, CookieSecure: false,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
 	return srv, fg, fl
