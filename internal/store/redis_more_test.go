@@ -15,26 +15,26 @@ func TestLoginAllow(t *testing.T) {
 	ctx := context.Background()
 
 	// max=2 per window: the 1st and 2nd are allowed, the 3rd is not.
-	if !c.LoginAllow(ctx, "ip1", 2, time.Minute) {
+	if !allowed(c.LoginAllow(ctx, "ip1", 2, time.Minute)) {
 		t.Fatal("the 1st attempt must be allowed")
 	}
-	if !c.LoginAllow(ctx, "ip1", 2, time.Minute) {
+	if !allowed(c.LoginAllow(ctx, "ip1", 2, time.Minute)) {
 		t.Fatal("the 2nd attempt must be allowed")
 	}
-	if c.LoginAllow(ctx, "ip1", 2, time.Minute) {
+	if allowed(c.LoginAllow(ctx, "ip1", 2, time.Minute)) {
 		t.Error("the 3rd attempt must be blocked")
 	}
 	// a different key is independent
-	if !c.LoginAllow(ctx, "ip2", 2, time.Minute) {
+	if !allowed(c.LoginAllow(ctx, "ip2", 2, time.Minute)) {
 		t.Error("a different key must not be affected")
 	}
 	// after the window — allowed again
 	mr.FastForward(2 * time.Minute)
-	if !c.LoginAllow(ctx, "ip1", 2, time.Minute) {
+	if !allowed(c.LoginAllow(ctx, "ip1", 2, time.Minute)) {
 		t.Error("after the window attempts are allowed again")
 	}
 	// max<=0 → always allowed
-	if !c.LoginAllow(ctx, "ip3", 0, time.Minute) {
+	if !allowed(c.LoginAllow(ctx, "ip3", 0, time.Minute)) {
 		t.Error("max=0 → no limit")
 	}
 }

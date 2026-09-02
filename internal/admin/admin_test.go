@@ -43,7 +43,7 @@ func (f *fakeGroups) Save(_ context.Context, g []config.Group) error { f.saved =
 
 type allowAll struct{}
 
-func (allowAll) Allow(context.Context, string) bool { return true }
+func (allowAll) Allow(context.Context, string) (bool, error) { return true, nil }
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()

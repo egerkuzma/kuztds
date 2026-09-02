@@ -67,11 +67,11 @@ func TestLoginAllowExpiryCannotBeLost(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		if !c.LoginAllow(ctx, "1.2.3.4", 3, time.Minute) {
+		if !allowed(c.LoginAllow(ctx, "1.2.3.4", 3, time.Minute)) {
 			t.Fatalf("attempt %d must be allowed", i+1)
 		}
 	}
-	if c.LoginAllow(ctx, "1.2.3.4", 3, time.Minute) {
+	if allowed(c.LoginAllow(ctx, "1.2.3.4", 3, time.Minute)) {
 		t.Fatal("4th attempt within the window must be blocked")
 	}
 	if ttl := mr.TTL("login:1.2.3.4"); ttl <= 0 {
@@ -79,7 +79,7 @@ func TestLoginAllowExpiryCannotBeLost(t *testing.T) {
 	}
 
 	mr.FastForward(2 * time.Minute)
-	if !c.LoginAllow(ctx, "1.2.3.4", 3, time.Minute) {
+	if !allowed(c.LoginAllow(ctx, "1.2.3.4", 3, time.Minute)) {
 		t.Fatal("after the window the limiter must let the administrator back in")
 	}
 }
@@ -93,16 +93,16 @@ func TestLoginAllowBlankWindowIsNotForever(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 2; i++ {
-		c.LoginAllow(ctx, "5.6.7.8", 2, 0)
+		allowed(c.LoginAllow(ctx, "5.6.7.8", 2, 0))
 	}
 	if ttl := mr.TTL("login:5.6.7.8"); ttl <= 0 {
 		t.Fatalf("ttl = %v, want the default window", ttl)
 	}
-	if c.LoginAllow(ctx, "5.6.7.8", 2, 0) {
+	if allowed(c.LoginAllow(ctx, "5.6.7.8", 2, 0)) {
 		t.Fatal("3rd attempt must be blocked")
 	}
 	mr.FastForward(defaultWindow + time.Second)
-	if !c.LoginAllow(ctx, "5.6.7.8", 2, 0) {
+	if !allowed(c.LoginAllow(ctx, "5.6.7.8", 2, 0)) {
 		t.Fatal("blank window must expire, not ban forever")
 	}
 }
@@ -112,7 +112,20 @@ func TestLoginAllowBlankWindowIsNotForever(t *testing.T) {
 func TestLoginAllowFailsOpen(t *testing.T) {
 	c, mr := newLoginCounters(t)
 	mr.Close()
-	if !c.LoginAllow(context.Background(), "9.9.9.9", 1, time.Minute) {
-		t.Fatal("a dead Redis must fail open")
+	ok, err := c.LoginAllow(context.Background(), "9.9.9.9", 1, time.Minute)
+	if !ok {
+		t.Fatal("a dead Redis must not block on its own")
+	}
+	// The failure is reported rather than swallowed. The caller decides what an
+	// unreachable limiter means; for the login handler it means answering
+	// before a password is compared, so that a right one and a wrong one do not
+	// get different replies.
+	if err == nil {
+		t.Fatal("a dead Redis must be reported to the caller")
 	}
 }
+
+// allowed drops the storage error for the tests that are about the counter
+// rather than about a broken Redis. The one test that is about the error checks
+// it explicitly.
+func allowed(ok bool, _ error) bool { return ok }

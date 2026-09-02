@@ -114,13 +114,16 @@ func main() {
 // limiterAdapter limits login to 10 attempts per minute per key (IP).
 type limiterAdapter struct{ c *store.Counters }
 
-func (a limiterAdapter) Allow(ctx context.Context, key string) bool {
+func (a limiterAdapter) Allow(ctx context.Context, key string) (bool, error) {
 	return a.c.LoginAllow(ctx, key, 10, time.Minute)
 }
 
+// allowAll is the limiter used when Redis is not configured. It never fails,
+// so the handler's refuse-on-error branch cannot fire in a deployment that has
+// no counters at all.
 type allowAll struct{}
 
-func (allowAll) Allow(context.Context, string) bool { return true }
+func (allowAll) Allow(context.Context, string) (bool, error) { return true, nil }
 
 func getenv(k, def string) string {
 	if v := os.Getenv(k); v != "" {
