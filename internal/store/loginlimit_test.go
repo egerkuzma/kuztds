@@ -10,18 +10,27 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// dropExpire fails a client-issued EXPIRE, the way a connection reset between
-// two round trips does. It is the whole point of these tests: the limiter must
-// not have a step there to lose.
-type dropExpire struct{}
+// expiryCommands is every way a client can stamp a TTL from a second round
+// trip. The set matters more than it looks: a hook that only drops "expire"
+// proves the limiter no longer sends that one command, and stays green if
+// someone reimplements it as INCR plus PExpire — the same bug under a
+// different name. What has to be caught is the class, not the string we
+// happened to burn on.
+var expiryCommands = map[string]bool{
+	"expire": true, "pexpire": true, "expireat": true, "pexpireat": true,
+}
 
-func (dropExpire) DialHook(next redis.DialHook) redis.DialHook { return next }
-func (dropExpire) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+// dropExpiry fails any client-issued expiry command, the way a connection reset
+// between two round trips does. The limiter must not have a step there to lose.
+type dropExpiry struct{}
+
+func (dropExpiry) DialHook(next redis.DialHook) redis.DialHook { return next }
+func (dropExpiry) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
 	return next
 }
-func (dropExpire) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+func (dropExpiry) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	return func(ctx context.Context, cmd redis.Cmder) error {
-		if cmd.Name() == "expire" {
+		if expiryCommands[cmd.Name()] {
 			return errors.New("connection reset by peer")
 		}
 		return next(ctx, cmd)
@@ -51,10 +60,10 @@ func newLoginCounters(t *testing.T, hooks ...redis.Hook) (*Counters, *miniredis.
 // admin UI to clear a key that locks you out of the admin UI.
 //
 // The counter and its expiry now go out in a single script, so there is no
-// window to lose. Dropping the client's EXPIRE proves it: the key still gets a
-// TTL and the limiter still recovers.
+// window to lose. Dropping every client-side expiry command proves it: the key
+// still gets a TTL and the limiter still recovers.
 func TestLoginAllowExpiryCannotBeLost(t *testing.T) {
-	c, mr := newLoginCounters(t, dropExpire{})
+	c, mr := newLoginCounters(t, dropExpiry{})
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
