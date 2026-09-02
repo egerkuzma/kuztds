@@ -73,12 +73,12 @@ func TestGetContextCancelled(t *testing.T) {
 func TestGetCachedHitsCache(t *testing.T) {
 	c := New("")
 	var calls atomic.Int32
-	load := func() (string, error) {
+	load := func(context.Context) (string, error) {
 		calls.Add(1)
 		return "value", nil
 	}
 	for i := 0; i < 3; i++ {
-		v, err := c.GetCached("k", time.Minute, load)
+		v, err := c.GetCached(context.Background(), "k", time.Minute, load)
 		if err != nil || v != "value" {
 			t.Fatalf("GetCached: v=%q err=%v", v, err)
 		}
@@ -91,9 +91,9 @@ func TestGetCachedHitsCache(t *testing.T) {
 func TestGetCachedTTLZeroNeverCaches(t *testing.T) {
 	c := New("")
 	var calls atomic.Int32
-	load := func() (string, error) { calls.Add(1); return "v", nil }
-	c.GetCached("k", 0, load)
-	c.GetCached("k", 0, load)
+	load := func(context.Context) (string, error) { calls.Add(1); return "v", nil }
+	c.GetCached(context.Background(), "k", 0, load)
+	c.GetCached(context.Background(), "k", 0, load)
 	if calls.Load() != 2 {
 		t.Errorf("ttl=0 must not cache, load called %d times", calls.Load())
 	}
@@ -106,16 +106,16 @@ func TestGetCachedExpiry(t *testing.T) {
 	c.now = func() time.Time { return cur }
 
 	var calls atomic.Int32
-	load := func() (string, error) { calls.Add(1); return "v", nil }
+	load := func(context.Context) (string, error) { calls.Add(1); return "v", nil }
 
-	c.GetCached("k", time.Minute, load) // calls=1, exp=base+1m
+	c.GetCached(context.Background(), "k", time.Minute, load) // calls=1, exp=base+1m
 	cur = base.Add(30 * time.Second)
-	c.GetCached("k", time.Minute, load) // still valid → cache
+	c.GetCached(context.Background(), "k", time.Minute, load) // still valid → cache
 	if calls.Load() != 1 {
 		t.Fatalf("within TTL should not reload, calls=%d", calls.Load())
 	}
 	cur = base.Add(2 * time.Minute) // expired
-	c.GetCached("k", time.Minute, load)
+	c.GetCached(context.Background(), "k", time.Minute, load)
 	if calls.Load() != 2 {
 		t.Errorf("after TTL should reload, calls=%d", calls.Load())
 	}
@@ -124,15 +124,15 @@ func TestGetCachedExpiry(t *testing.T) {
 func TestGetCachedErrorNotCached(t *testing.T) {
 	c := New("")
 	var calls atomic.Int32
-	load := func() (string, error) {
+	load := func(context.Context) (string, error) {
 		calls.Add(1)
 		return "", context.DeadlineExceeded
 	}
-	if _, err := c.GetCached("k", time.Minute, load); err == nil {
+	if _, err := c.GetCached(context.Background(), "k", time.Minute, load); err == nil {
 		t.Fatal("expected error propagated")
 	}
 	// a repeat call loads again (the error is not cached)
-	c.GetCached("k", time.Minute, load)
+	c.GetCached(context.Background(), "k", time.Minute, load)
 	if calls.Load() != 2 {
 		t.Errorf("error must not be cached, calls=%d", calls.Load())
 	}

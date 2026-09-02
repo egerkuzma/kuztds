@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // Client is a thread-safe loader with a cache.
@@ -18,6 +20,18 @@ type Client struct {
 	mu  sync.Mutex
 	now func() time.Time
 	c   map[string]entry
+	sf  singleflight.Group
+
+	// onStore, when set, is called after an entry has been written and the
+	// mutex released. A test seam; nil in production.
+	//
+	// The ordering carries two things at once. Called while mu is held, a
+	// callback that reads the map deadlocks on a non-reentrant mutex — in the
+	// very test written to make this reliable. And "after Unlock" is also the
+	// honest meaning: the callback says the entry is stored and visible, not
+	// that a store is beginning. That is the state a test needs, not the
+	// moment. Do not move this call earlier.
+	onStore func()
 }
 
 type entry struct {
@@ -64,27 +78,76 @@ func (c *Client) Get(ctx context.Context, url string) (string, error) {
 	return string(b), nil
 }
 
-// GetCached returns the value from the cache by key or loads it via load()
-// and caches it for ttl. On a load error the cache is not updated.
-func (c *Client) GetCached(key string, ttl time.Duration, load func() (string, error)) (string, error) {
-	if ttl > 0 {
-		c.mu.Lock()
-		if e, ok := c.c[key]; ok && c.now().Before(e.exp) {
-			c.mu.Unlock()
-			return e.val, nil
+// GetCached returns the value for key, loading it through load on a miss and
+// caching it for ttl. On a load error the cache is not updated.
+//
+// Concurrent misses on one key are collapsed into a single load. That is the
+// point of the singleflight, and it is also why load runs on a context of its
+// own rather than on any caller's: singleflight hands the leader's result to
+// every waiter, so a leader whose visitor closed the tab would fail the fetch
+// for the whole queue behind it. Today one visitor leaving costs exactly one
+// request — its own — and that has to stay true. The detached load is bounded
+// by http.Client's own timeout.
+//
+// Each caller still waits under its own ctx and can walk away without
+// disturbing the others. The load outlives all of them if it has to, and
+// finishes the job: the entry is written from inside the group, so a fetch
+// nobody is waiting for any more still lands in the cache and the next arrival
+// gets a hit instead of starting over. Storing in the caller instead would make
+// an abandoned fetch ten seconds of work thrown away.
+func (c *Client) GetCached(ctx context.Context, key string, ttl time.Duration, load func(context.Context) (string, error)) (string, error) {
+	if ttl <= 0 {
+		// ttl 0 is the operator saying "answer this one per visitor", not just
+		// "do not keep it". A Remote configured with Cache: 0 is a per-visitor
+		// decision — capacity, price, which offer is next in the rotation — and
+		// a shared key would otherwise hand one draw to a whole burst of
+		// arrivals. Collapsing and storing are separate questions: a value we
+		// decline to keep because it is too big is still the same value for
+		// everyone and should collapse. A value declared per-visitor must not.
+		return load(ctx)
+	}
+	if v, ok := c.lookup(key); ok {
+		return v, nil
+	}
+	ch := c.sf.DoChan(key, func() (any, error) {
+		v, err := load(context.Background())
+		if err != nil {
+			return "", err
 		}
-		c.mu.Unlock()
+		c.store(key, v, ttl)
+		return v, nil
+	})
+	select {
+	case r := <-ch:
+		if r.Err != nil {
+			return "", r.Err
+		}
+		return r.Val.(string), nil
+	case <-ctx.Done():
+		return "", ctx.Err()
 	}
-	val, err := load()
-	if err != nil {
-		return val, err
+}
+
+// lookup returns a cached value that has not expired.
+func (c *Client) lookup(key string) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.c[key]
+	if !ok || !c.now().Before(e.exp) {
+		return "", false
 	}
-	if ttl > 0 {
-		c.mu.Lock()
-		c.c[key] = entry{val: val, exp: c.now().Add(ttl)}
-		c.mu.Unlock()
+	return e.val, true
+}
+
+// store writes the entry and then, outside the lock, signals onStore.
+func (c *Client) store(key, val string, ttl time.Duration) {
+	c.mu.Lock()
+	c.c[key] = entry{val: val, exp: c.now().Add(ttl)}
+	cb := c.onStore
+	c.mu.Unlock()
+	if cb != nil {
+		cb()
 	}
-	return val, nil
 }
 
 type httpError struct{ code int }

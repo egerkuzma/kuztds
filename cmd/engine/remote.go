@@ -20,8 +20,8 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 	u = strings.ReplaceAll(u, "[LANG]", lang)
 	u = strings.ReplaceAll(u, "[KEY]", key)
 	ttl := time.Duration(rm.Cache) * time.Second
-	val, err := fc.GetCached("remote:"+u, ttl, func() (string, error) {
-		body, err := fc.Get(ctx, u)
+	val, err := fc.GetCached(ctx, "remote:"+u, ttl, func(lctx context.Context) (string, error) {
+		body, err := fc.Get(lctx, u)
 		if err != nil {
 			return "", err
 		}
@@ -41,14 +41,19 @@ func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, co
 // whether the fetch actually succeeded.
 //
 // Any error fails the whole call, including a non-2xx status. Get returns the
-// response body alongside the status error, so the previous "err != nil &&
-// body == ''" let an upstream error page through: a partner's 502 was rendered
-// into the visitor's response under our own 200, and the event log recorded an
-// ordinary serve. A failed fetch has no usable body, whatever its length.
+// response body alongside the status error, so the previous condition — an
+// error AND an empty body — let an upstream error page through: a partner's 502
+// was rendered into the visitor's response under our own 200, and the event log
+// recorded an ordinary serve. A failed fetch has no usable body, whatever its
+// length.
+//
+// Spelled out in words on purpose: gofmt reformats doc comments and turns a
+// pair of straight single quotes into a typographic one, which silently rewrote
+// this sentence into nonsense once already.
 func curlBody(fc *fetch.Client, ctx context.Context, url, rules string, curlCacheMin int) (string, bool) {
 	ttl := time.Duration(curlCacheMin) * time.Minute
-	body, err := fc.GetCached("curl:"+url, ttl, func() (string, error) {
-		return fc.Get(ctx, url)
+	body, err := fc.GetCached(ctx, "curl:"+url, ttl, func(lctx context.Context) (string, error) {
+		return fc.Get(lctx, url)
 	})
 	if err != nil {
 		return "", false
