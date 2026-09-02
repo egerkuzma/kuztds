@@ -8,6 +8,10 @@ package admin
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"net"
@@ -52,8 +56,13 @@ type ListsStore interface {
 }
 
 // LoginLimiter limits the rate of login attempts per key (IP).
+//
+// Allow reports whether the attempt may proceed, and separately whether the
+// limiter could answer at all. The two are not the same: a limiter that cannot
+// reach its storage has no opinion, and the handler needs to know that before
+// it decides whether to check a password.
 type LoginLimiter interface {
-	Allow(ctx context.Context, key string) bool
+	Allow(ctx context.Context, key string) (bool, error)
 }
 
 // Config — dependencies and settings of the admin server.
@@ -84,6 +93,14 @@ type Server struct {
 	cfg    Config
 	mu     sync.RWMutex
 	pwHash string // current password hash (may change at runtime)
+
+	// hashes bounds concurrent password verifications: argon2id is 64 MiB a
+	// call and runs before any credential is checked.
+	hashes *hashGate
+
+	// loginFPKey keys the fingerprint of submitted login names in the log. It
+	// is generated once per process and never leaves it.
+	loginFPKey []byte
 }
 
 const cookieName = "kuztds_admin"
@@ -93,7 +110,14 @@ func New(cfg Config) *Server {
 	if cfg.SessionTTL <= 0 {
 		cfg.SessionTTL = 12 * time.Hour
 	}
-	s := &Server{cfg: cfg, pwHash: cfg.PasswordHash}
+	key := make([]byte, 32)
+	// crypto/rand.Read does not return an error as of Go 1.24 — it panics if
+	// the system source fails. That is the right outcome here anyway: a
+	// zero-valued key would silently reduce the log fingerprint to a bare
+	// SHA-256, which is exactly what it exists to avoid, and nothing would look
+	// any different.
+	rand.Read(key)
+	s := &Server{cfg: cfg, pwHash: cfg.PasswordHash, hashes: newHashGate(0), loginFPKey: key}
 	// The hash file takes priority (and is also written on password change).
 	if cfg.PasswordFile != "" {
 		if b, err := os.ReadFile(cfg.PasswordFile); err == nil {
@@ -146,17 +170,71 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
-	if s.cfg.Limiter != nil && !s.cfg.Limiter.Allow(r.Context(), ip) {
-		writeErr(w, http.StatusTooManyRequests, "too many attempts")
-		return
+
+	// The limiter goes first, and its failure answers 500 before any password
+	// is looked at. That ordering is the whole point.
+	//
+	// A wrong password answers 401. A right password with the session store
+	// down answers 500, because issueSession cannot write the session. Two
+	// different answers to "was that the password" is an oracle: with the
+	// limiter previously swallowing the storage error into a fail-open true, an
+	// unlimited stream of guesses could be run against a dead Redis and be told
+	// which one was correct. Nobody could log in during that window — but the
+	// password was learned, and Redis comes back.
+	//
+	// Refusing before the comparison removes the answer instead of hiding it.
+	// It does not remove the window entirely: Redis can still die between this
+	// check and issueSession, with an argon2 verification in between. That
+	// residue is the width of one hash, and every probe of it costs the
+	// attacker a hash and a slot in the limiter. Closing it completely would
+	// take making both branches do the same work — writing and discarding a
+	// session on every failure — which puts a scanner's traffic into the same
+	// Redis the engine keeps its counters in. Not worth it. Do not read this as
+	// "the oracle is gone": it is narrowed to the gap between here and
+	// issueSession, and moving the limiter would widen it back.
+	if s.cfg.Limiter != nil {
+		allowed, err := s.cfg.Limiter.Allow(r.Context(), ip)
+		if err != nil {
+			s.logWarn("login limiter unavailable, refusing before the password check", "ip", ip, "err", err)
+			writeErr(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		if !allowed {
+			writeErr(w, http.StatusTooManyRequests, "too many attempts")
+			return
+		}
 	}
+
 	var body struct{ Login, Password string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad request")
 		return
 	}
-	if !security.EqualTokens(body.Login, s.cfg.AdminUser) || !security.VerifyPassword(body.Password, s.currentHash()) {
-		s.logWarn("admin login failed", "ip", ip, "login", body.Login)
+
+	if !s.hashes.enter() {
+		if n := s.hashes.report(); n > 0 {
+			s.logWarn("login verifications refused: hashing slots exhausted", "since_last", n)
+		}
+		writeErr(w, http.StatusTooManyRequests, "too many attempts")
+		return
+	}
+	userOK := security.EqualTokens(body.Login, s.cfg.AdminUser)
+	// Both halves are evaluated. With "!userOK || !VerifyPassword(...)" Go
+	// short-circuits: a wrong user name returns in microseconds while the right
+	// one costs argon2's hundred milliseconds, and the administrator's login
+	// name reads off the clock. Constant-time EqualTokens right next to it buys
+	// nothing while the operator above it leaks the answer.
+	passOK := security.VerifyPassword(body.Password, s.currentHash())
+	s.hashes.leave()
+
+	if !userOK || !passOK {
+		// The submitted login is not logged. People type their password into
+		// the user name box, and this line goes to a collector that outlives
+		// the password. The fingerprint is keyed with a value generated at
+		// startup, so a scanner still reads as one repeated login and a spray
+		// as many different ones, while a dictionary run against the log
+		// finds nothing.
+		s.logWarn("admin login failed", "ip", ip, "login_fp", s.loginFP(body.Login))
 		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -166,6 +244,22 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"csrf": csrf})
+}
+
+// loginFP is a short keyed fingerprint of a submitted login name, for telling a
+// scanner (one value, many attempts) from a spray (many values) without putting
+// the value itself into a log.
+//
+// Keyed, not plain: eight bytes of bare SHA-256 are sixty-four bits, which is
+// plenty to confirm a guess, so a plain digest of a mistyped password is a
+// crackable artefact sitting in the log. The key is generated per process, so
+// the fingerprints are comparable within one run — the window anyone actually
+// looks at — and useless for linking activity across restarts or for testing a
+// dictionary against.
+func (s *Server) loginFP(login string) string {
+	m := hmac.New(sha256.New, s.loginFPKey)
+	m.Write([]byte(login))
+	return base64.RawURLEncoding.EncodeToString(m.Sum(nil)[:8])
 }
 
 // issueSession creates a fresh session bound to the current password, sets the

@@ -50,7 +50,7 @@ func (fakeKeys) Read(group, date string, se bool) (string, error) {
 
 type denyLimiter struct{}
 
-func (denyLimiter) Allow(context.Context, string) bool { return false }
+func (denyLimiter) Allow(context.Context, string) (bool, error) { return false, nil }
 
 // fullServer builds a server with all dependencies (Lists/Keys/Groups/Stats).
 func fullServer(t *testing.T, limiter LoginLimiter) (*httptest.Server, *fakeGroups, *fakeLists) {
