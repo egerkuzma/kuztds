@@ -69,8 +69,13 @@ var ErrBadHash = errors.New("security: invalid hash format")
 // falls over the same either way. The upper limits sit far above anything
 // HashPassword produces, so a legitimate hash never meets them.
 const (
-	minMemory  = 8 * 1024        // 8 MiB
-	maxMemory  = 1 * 1024 * 1024 // 1 GiB
+	minMemory = 8 * 1024 // 8 MiB
+	// maxMemory is four times what HashPassword produces. It is a typo guard,
+	// not a tuning range, and it is also half of a pair: the admin server runs
+	// several verifications at once, so the memory a login flood can ask for is
+	// this number times that slot count. Raising it here raises that ceiling
+	// there, silently, in another package.
+	maxMemory  = 256 * 1024 // 256 MiB
 	minTime    = 1
 	maxTime    = 16
 	minThreads = 1
