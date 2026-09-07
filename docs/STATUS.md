@@ -18,7 +18,7 @@ Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
 - **Block 7** — CSV log export, sources (domains), per-group log cleanup,
   stream reordering ↑/↓.
 - **UI (rebuilt 2026-08-20)**: left sidebar navigation, top bar on the right
-  (period, Settings gear, user, log out), dark theme. Groups is a **master–detail**
+  (period, Settings gear, user, log out), light GitHub-style theme (2026-09-08; was dark). Groups is a **master–detail**
   editor: collapsible tree with search on the left, and a pane on the right that
   holds exactly one form — the group's or a stream's. Both panes scroll
   internally, so selecting a stream never moves the page (the previous layout

@@ -519,7 +519,7 @@ the result (redirect or content).
 
 ## Admin web interface
 
-A single embedded SPA (dark theme, English UI). Layout: **left sidebar**
+A single embedded SPA (light GitHub-style theme, English UI). Layout: **left sidebar**
 navigation, **top-right** period picker, settings gear, user, and log-out.
 
 - **Dashboard** — visits / unique / bots cards, a time chart, and breakdowns by
