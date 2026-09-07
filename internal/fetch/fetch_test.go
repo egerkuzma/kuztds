@@ -18,7 +18,7 @@ func TestGetOK(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New("TestUA")
+	c := New("TestUA", nil)
 	got, err := c.Get(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -35,7 +35,7 @@ func TestGetNon2xxReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New("")
+	c := New("", nil)
 	body, err := c.Get(context.Background(), srv.URL)
 	if err == nil {
 		t.Fatal("expected error on 404")
@@ -49,7 +49,7 @@ func TestGetNon2xxReturnsError(t *testing.T) {
 }
 
 func TestGetBadURL(t *testing.T) {
-	c := New("")
+	c := New("", nil)
 	if _, err := c.Get(context.Background(), "://bad url"); err == nil {
 		t.Error("expected error on malformed URL")
 	}
@@ -62,7 +62,7 @@ func TestGetContextCancelled(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New("")
+	c := New("", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	if _, err := c.Get(ctx, srv.URL); err == nil {
@@ -71,7 +71,7 @@ func TestGetContextCancelled(t *testing.T) {
 }
 
 func TestGetCachedHitsCache(t *testing.T) {
-	c := New("")
+	c := New("", nil)
 	var calls atomic.Int32
 	load := func() (string, error) {
 		calls.Add(1)
@@ -89,7 +89,7 @@ func TestGetCachedHitsCache(t *testing.T) {
 }
 
 func TestGetCachedTTLZeroNeverCaches(t *testing.T) {
-	c := New("")
+	c := New("", nil)
 	var calls atomic.Int32
 	load := func() (string, error) { calls.Add(1); return "v", nil }
 	c.GetCached("k", 0, load)
@@ -100,7 +100,7 @@ func TestGetCachedTTLZeroNeverCaches(t *testing.T) {
 }
 
 func TestGetCachedExpiry(t *testing.T) {
-	c := New("")
+	c := New("", nil)
 	base := time.Unix(1000, 0)
 	cur := base
 	c.now = func() time.Time { return cur }
@@ -122,7 +122,7 @@ func TestGetCachedExpiry(t *testing.T) {
 }
 
 func TestGetCachedErrorNotCached(t *testing.T) {
-	c := New("")
+	c := New("", nil)
 	var calls atomic.Int32
 	load := func() (string, error) {
 		calls.Add(1)
@@ -139,7 +139,7 @@ func TestGetCachedErrorNotCached(t *testing.T) {
 }
 
 func TestNewDefaultUA(t *testing.T) {
-	c := New("")
+	c := New("", nil)
 	if c.ua != "Mozilla/5.0" {
 		t.Errorf("default UA = %q", c.ua)
 	}

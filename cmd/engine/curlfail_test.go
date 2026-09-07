@@ -39,7 +39,7 @@ func curlEnv(t *testing.T, groups *config.Groups, trashMode string) (http.Handle
 	go buf.Run(ctx)
 	d := &engineDeps{
 		log: log, lists: lists, sigs: detect.NewSignatures(dir, log), geores: geo.Nop{},
-		groups: groups, logs: buf, fetcher: fetch.New(""),
+		groups: groups, logs: buf, fetcher: fetch.New("", nil),
 		dataDir: dir, keysDir: dir, trashMode: trashMode,
 	}
 	realIP, err := server.NewRealIP([]string{"127.0.0.1/32"})

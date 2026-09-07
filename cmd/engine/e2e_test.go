@@ -69,7 +69,7 @@ func newEng(t *testing.T, groups *config.Groups, h engHarness) http.Handler {
 	d := &engineDeps{
 		log: log, lists: lists, sigs: sigs, geores: geo.Nop{}, groups: groups,
 		dataDir: dir, keysDir: dir, postbackKey: "pb", apiKey: "k",
-		fetcher: fetch.New(""), trashMode: h.trashMode, trashURL: h.trashURL,
+		fetcher: fetch.New("", nil), trashMode: h.trashMode, trashURL: h.trashURL,
 	}
 	if d.trashMode == "" {
 		d.trashMode = "0"
@@ -448,7 +448,7 @@ func TestE2E_SaveBotIP(t *testing.T) {
 			Bots: config.Bots{CheckUA: true, SaveIP: true, Redirect: "skip"}},
 	}})
 	d := &engineDeps{log: log, lists: lists, sigs: sigs, geores: geo.Nop{}, groups: gg,
-		dataDir: dir, keysDir: dir, fetcher: fetch.New(""), trashMode: "0"}
+		dataDir: dir, keysDir: dir, fetcher: fetch.New("", nil), trashMode: "0"}
 	realIP, _ := server.NewRealIP([]string{"127.0.0.1/32"})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", d.root)
