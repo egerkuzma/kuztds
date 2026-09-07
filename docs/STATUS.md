@@ -54,8 +54,10 @@ Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
      only when the window was positive, so an enabled firewall with `seconds: 0`
      left an immortal Redis key and blocked the IP forever. Same shape for a
      type-2 stream limit with no period. Counters now go through
-     `incrWithTTL()`, which guarantees an expiry and drops the key if `EXPIRE`
-     fails (`redis.go`).
+     `incrWithTTL()`, which guarantees an expiry (`redis.go`). *Since #14 the
+     helper is one atomic Lua script (`INCR` + `PEXPIRE`); the earlier
+     delete-on-failed-`EXPIRE` compensation is gone because there is nothing
+     left to compensate for.*
   4. **`save_ip` appended duplicates until the next hot-reload.** Dedup was done
      against the in-memory index, which only catches up once a minute, so every
      hit from the same crawler IP added another line to `ip_<se>.dat`. A process-level
@@ -85,7 +87,9 @@ Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
   the filter never goes live pointing at a list that was never read.
   `cmd/engine/reload.go` + `reload_test.go`.
 
-- **Hardening pass (2026-09-07, PRs #13–#27).** Grouped by what each protects:
+- **Hardening pass (2026-08-27 → 2026-09-07; #13, #14, #16–#19, #21–#25, #27 —
+  #15 superseded by #24, #20 and #26 closed unmerged).** Grouped by what each
+  protects:
 
   *Hot path, correctness.* A failed CURL fetch is no longer served as a normal
   page — the partner's error body used to be rendered under our own 200 and
@@ -106,20 +110,17 @@ Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
   per host and no cap at all on simultaneous ones (#16). Separation lists are
   held in memory instead of being read from disk on every request (#17).
 
-  *Admin.* See `SECURITY.md` §3: the login oracle against a dead Redis, the
-  bound on hashing cost, the login name out of the logs (#23, landed by #25),
-  one writer and an atomic write for the password hash (#22), and a login
-  limiter that could ban the administrator permanently (#21).
+  *Admin.* Login hardening — `SECURITY.md` §3 (#21, #22, #23 via #25).
 
 - **Process note.** #15–#17 were a stack: each targeted the previous *branch*
   rather than `main`. #13 landed first, the chain snapped, and GitHub reported
   the rest as MERGED — which was true of the branches and false of `main`. The
-  transport and seplist work sat outside `main` for ten days until #27 carried
+  transport and seplist work sat outside `main` for eleven days until #27 carried
   it over; the login half (#23 into #21's branch) was caught earlier by #25.
   Worth remembering before stacking PRs again: merged into a branch is not
   merged.
 
-## Tests (coverage as of 2026-08-20)
+## Tests (coverage as of 2026-09-07)
 Run: `go test ./...` (unit) and `go test -tags=integration ./...` (with
 CH+Redis). `go vet ./...` — clean. Coverage command:
 `go test -tags=integration ./... -cover`.
@@ -143,9 +144,11 @@ CH+Redis). `go vet ./...` — clean. Coverage command:
 | cmd/apiclient | 71.6% | round-trip with a fake TDS (`newClientHandler`) |
 | cmd/admin | 0% | only the `main()` wiring; the logic is in internal/admin |
 
-\* `internal/store` was not re-measured on 2026-08-20: ClickHouse was not
-running, so the `integration` tests skip (27.5% without them). The 77.0% figure
-is the last measurement with ClickHouse up.
+\* `internal/store` measured 27.5% on 2026-09-07 with ClickHouse down (the
+`integration` tests skip; plain `go test ./... -cover`). The 77.0% shown is the
+last run with ClickHouse up, from 2026-06-07 — before #14 (`TakeLimit`), #21
+and #23 touched the package, so treat it as a stale upper reference, not the
+current figure.
 
 Refactor for testability: hot-path handlers were extracted from `main()`
 closures into `cmd/engine/handler.go` (`engineDeps.root`) and `cmd/apiclient`
