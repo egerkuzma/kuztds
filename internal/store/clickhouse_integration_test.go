@@ -152,6 +152,41 @@ func TestCHRoundTrip(t *testing.T) {
 	if len(pb) == 1 && pb[0].CID != "cid_a" {
 		t.Errorf("Postback cid = %q, expected cid_a", pb[0].CID)
 	}
+
+	// Performance: s1 = 2 hits / 1 unique / 0 bots / 1 conversion of 2.5;
+	// s2 = 1 hit, a bot, no conversions.
+	perf, err := ch.Performance(ctx, from, to)
+	if err != nil {
+		t.Fatalf("Performance: %v", err)
+	}
+	got := map[string]PerfRow{}
+	for _, p := range perf {
+		if p.GroupID == group {
+			got[p.Stream] = p
+		}
+	}
+	if s1 := got["s1"]; s1.Hits != 2 || s1.Unique != 1 || s1.Bots != 0 || s1.Conv != 1 || s1.Profit != 2.5 {
+		t.Errorf("Performance s1 = %+v, expected 2/1/0 hits/uniq/bots, 1 conv of 2.5", s1)
+	}
+	if s2 := got["s2"]; s2.Hits != 1 || s2.Bots != 1 || s2.Conv != 0 {
+		t.Errorf("Performance s2 = %+v, expected 1 hit, 1 bot, 0 conv", s2)
+	}
+
+	// DeleteGroupLogs keys on group_id: after the mutation the group's rows are gone.
+	if err := ch.DeleteGroupLogs(ctx, group); err != nil {
+		t.Fatalf("DeleteGroupLogs: %v", err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		_, left, _ := ch.Logs(ctx, LogFilter{From: from, To: to, Group: []string{group}, Limit: 10})
+		if left == 0 || time.Now().After(deadline) {
+			if left != 0 {
+				t.Errorf("DeleteGroupLogs: %d rows still present after 10 s", left)
+			}
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 func containsKey(kv []KV, key string) bool {

@@ -242,6 +242,7 @@ func TestBreakdownAndTimeSeriesAndPostbacks(t *testing.T) {
 	for _, path := range []string{
 		"/api/stats/breakdown?dim=country",
 		"/api/stats/timeseries?step=3600",
+		"/api/stats/performance",
 		"/api/postbacks?group=g1",
 		"/api/logs?limit=10",
 	} {

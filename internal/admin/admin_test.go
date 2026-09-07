@@ -26,6 +26,9 @@ func (fakeStats) TimeSeries(context.Context, time.Time, time.Time, int) ([]store
 func (fakeStats) Breakdown(context.Context, time.Time, time.Time, string, int) ([]store.KV, error) {
 	return []store.KV{{Key: "ru", Count: 50}}, nil
 }
+func (fakeStats) Performance(context.Context, time.Time, time.Time) ([]store.PerfRow, error) {
+	return []store.PerfRow{{GroupID: "g1", Group: "demo", Stream: "s1", Hits: 80, Unique: 60, Bots: 5, Conv: 3, Profit: 4.5}}, nil
+}
 func (fakeStats) Logs(context.Context, store.LogFilter) ([]store.LogRow, int64, error) {
 	return []store.LogRow{{IP: "1.2.3.4", Country: "ru"}}, 1, nil
 }
