@@ -52,17 +52,25 @@ func (s *RedisSessions) Delete(ctx context.Context, token string) error {
 
 // LoginAllow limits login attempts: no more than max per window per key.
 // Returns true if the attempt is allowed.
+//
+// The counter and its expiry are set in one atomic step, through the same
+// script the firewall uses. Done as INCR followed by a separate EXPIRE, a
+// failure between the two round trips leaves "login:<key>" with no expiry at
+// all — and a login limiter backed by a key that never resets is not a limiter
+// but a permanent lockout, on the one door there is no way back in through.
+//
+// A non-positive window falls back to defaultWindow for the same reason: the
+// branch that skipped EXPIRE entirely produced exactly that immortal key.
 func (c *Counters) LoginAllow(ctx context.Context, key string, max int, window time.Duration) bool {
 	if max <= 0 {
 		return true
 	}
-	k := "login:" + key
-	n, err := c.rdb.Incr(ctx, k).Result()
+	if window <= 0 {
+		window = defaultWindow
+	}
+	n, err := c.incrWithTTL(ctx, "login:"+key, window)
 	if err != nil {
 		return true // fail-open
-	}
-	if n == 1 && window > 0 {
-		c.rdb.Expire(ctx, k, window)
 	}
 	return n <= int64(max)
 }
