@@ -16,6 +16,7 @@ import (
 	"github.com/egerkuzma/kuztds/internal/detect"
 	"github.com/egerkuzma/kuztds/internal/geo"
 	"github.com/egerkuzma/kuztds/internal/ipindex"
+	"github.com/egerkuzma/kuztds/internal/seplist"
 	"github.com/egerkuzma/kuztds/internal/server"
 )
 
@@ -30,8 +31,10 @@ func testEnv(t *testing.T, groups *config.Groups, opts ...func(*engineDeps)) htt
 	lists.Load(ipLists...) // no files — lists are empty, that's fine
 	sigs := detect.NewSignatures(dir, log)
 
+	seps := seplist.NewSet(dir, log)
+	seps.Load(separationFiles(groups)...)
 	d := &engineDeps{
-		log: log, lists: lists, sigs: sigs, geores: geo.Nop{},
+		log: log, lists: lists, sigs: sigs, seps: seps, geores: geo.Nop{},
 		groups: groups, dataDir: dir, keysDir: dir, trashMode: "0",
 	}
 	for _, o := range opts {
@@ -279,7 +282,9 @@ func TestSeparation(t *testing.T) {
 	gg := group(config.Stream{Name: "s", Status: true,
 		Out:        config.Output{Redirect: "http_redirect", Out: "https://default.example"},
 		Separation: config.Separation{Enabled: true, File: "sep.dat"}})
-	d := &engineDeps{log: log, lists: lists, sigs: sigs, geores: geo.Nop{},
+	seps := seplist.NewSet(dir, log)
+	seps.Load(separationFiles(gg)...)
+	d := &engineDeps{log: log, lists: lists, sigs: sigs, seps: seps, geores: geo.Nop{},
 		groups: gg, dataDir: dir, keysDir: dir, trashMode: "0"}
 	realIP, _ := server.NewRealIP([]string{"127.0.0.1/32"})
 	mux := http.NewServeMux()

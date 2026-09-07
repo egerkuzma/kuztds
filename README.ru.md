@@ -549,9 +549,9 @@ http://your-host/?pb=YOUR_POSTBACK_KEY&cid=[CID]&profit=1.50
 - `GET /healthz` — health-проба. Тело остаётся `ok`; число событий лога, не
   доехавших до ClickHouse, едет в заголовках, чтобы его можно было снимать без
   metrics-эндпоинта: `X-Events-Lost: <всего>` и
-  `X-Events-Lost-Detail: full=<n> insert=<n> late=<n>` (переполнение буфера /
-  неудачная вставка / запись во время остановки). Те же счётчики пишутся в лог
-  при выходе.
+  `X-Events-Lost-Detail: full=<n> queue=<n> insert=<n> late=<n>` (переполнен
+  входной канал / переполнена очередь батчей / вставка не удалась / событие
+  пришло во время остановки). Те же счётчики пишутся в лог при выходе.
 
 **Admin API** (`GET /api/health` открыт, остальное за сессией + CSRF):
 `POST /api/login`, `POST /api/logout`,

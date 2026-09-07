@@ -17,6 +17,7 @@ import (
 	"github.com/egerkuzma/kuztds/internal/logbuf"
 	"github.com/egerkuzma/kuztds/internal/render"
 	"github.com/egerkuzma/kuztds/internal/router"
+	"github.com/egerkuzma/kuztds/internal/seplist"
 	"github.com/egerkuzma/kuztds/internal/server"
 	"github.com/egerkuzma/kuztds/internal/store"
 )
@@ -28,6 +29,7 @@ type engineDeps struct {
 	log          *slog.Logger
 	lists        *ipindex.Set
 	sigs         *detect.Signatures
+	seps         *seplist.Set
 	geores       geo.Resolver
 	counters     *store.Counters
 	groups       *config.Groups
@@ -56,6 +58,32 @@ func ipListFiles(groups *config.Groups) []string {
 	for _, g := range groups.List() {
 		for _, s := range g.Streams {
 			f := strings.TrimSuffix(s.Rules.IPList.File, ".dat")
+			if f == "" || seen[f] {
+				continue
+			}
+			seen[f] = true
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// separationFiles collects the .dat names referenced by stream separation
+// rules, so seplist.Set can hold them in memory. Same reason as ipListFiles: a
+// file the engine never read matches nothing, and separation failing to fire is
+// invisible — the stream just serves its default output.
+func separationFiles(groups *config.Groups) []string {
+	if groups == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, g := range groups.List() {
+		for _, s := range g.Streams {
+			if !s.Separation.Enabled {
+				continue
+			}
+			f := strings.TrimSuffix(s.Separation.File, ".dat")
 			if f == "" || seen[f] {
 				continue
 			}
@@ -272,7 +300,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	// separation: substitute the output by keyword (unless this is bot serving).
 	if !botServed && selStream != nil && selStream.Separation.Enabled &&
 		v.Key != "" && selStream.Separation.File != "" {
-		if o := separationOut(d.dataDir, selStream.Separation.File, v.Key); o != "" {
+		if o := d.seps.Lookup(selStream.Separation.File, v.Key); o != "" {
 			outRaw = o
 		}
 	}

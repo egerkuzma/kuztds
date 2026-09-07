@@ -547,8 +547,9 @@ navigation, **top-right** period picker, settings gear, user, and log-out.
 - `GET /healthz` — health probe. The body stays `ok`; the number of log events
   that never reached ClickHouse rides along in headers, so it can be scraped
   without a metrics endpoint: `X-Events-Lost: <total>` and
-  `X-Events-Lost-Detail: full=<n> insert=<n> late=<n>` (buffer overflow / failed
-  insert / pushed during shutdown). The same counters are logged on exit.
+  `X-Events-Lost-Detail: full=<n> queue=<n> insert=<n> late=<n>` (the intake
+  channel was full / the batch queue was full / the insert failed / the event
+  arrived during shutdown). The same counters are logged on exit.
 
 **Admin API** (`GET /api/health` is open; the rest is session + CSRF protected):
 `POST /api/login`, `POST /api/logout`,
