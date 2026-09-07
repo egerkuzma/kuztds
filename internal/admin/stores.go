@@ -99,11 +99,7 @@ func (l *FileLists) Write(name, content string) error {
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, []byte(content), 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, p)
+	return writeFileAtomic(p, []byte(content), 0o644)
 }
 
 // FileKeys reads collected keywords from keysDir/<group>/<date>[-se].dat.

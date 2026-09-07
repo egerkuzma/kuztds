@@ -25,11 +25,14 @@ func (r *recordingStats) Logs(_ context.Context, f store.LogFilter) ([]store.Log
 func serverWithStats(t *testing.T, st StatsProvider) (string, *http.Client) {
 	t.Helper()
 	hash, _ := security.HashPassword("p@ss")
-	s := New(Config{
+	s, err := New(Config{
 		AdminUser: "admin", PasswordHash: hash,
 		Sessions: security.NewMemoryStore(), Stats: st,
 		Limiter: allowAll{}, SessionTTL: time.Hour, CookieSecure: false,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
 	c := newClient(t)

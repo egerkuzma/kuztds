@@ -10,12 +10,15 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egerkuzma/kuztds/internal/config"
@@ -79,37 +82,117 @@ type slogLogger interface {
 	Info(msg string, args ...any)
 }
 
+// credential is the password hash together with its fingerprint. The two are
+// published as one value because the second is derived from the first: computed
+// separately they can drift, and a fingerprint belonging to an older hash makes
+// auth either reject every session or accept sessions it should have killed.
+// Deriving it once, here, also keeps a SHA-256 out of every authenticated
+// request, where auth used to recompute it.
+type credential struct {
+	hash string
+	fp   string
+}
+
 // Server — admin API.
 type Server struct {
-	cfg    Config
-	mu     sync.RWMutex
-	pwHash string // current password hash (may change at runtime)
+	cfg Config
+
+	// cred is the only place the current password lives. It is an atomic
+	// pointer rather than a mutex-guarded field because it has exactly one
+	// writer, a password change, and one reader on every authenticated
+	// request. Publishing goes through publish() and nowhere else, so there is
+	// no assignment that could forget to recompute the fingerprint.
+	cred atomic.Pointer[credential]
+
+	// pwWrite serialises password changes: the file write and the publication
+	// have to happen in one order, or two concurrent changes can leave the disk
+	// holding one password and the process running on another, which nothing
+	// reveals until the next restart.
+	//
+	// Deliberately not the same lock the readers use. A mutex held across a
+	// write to the filesystem is a mutex that stalls every login for as long as
+	// the disk feels like taking.
+	pwWrite sync.Mutex
 }
 
 const cookieName = "kuztds_admin"
 
 // New creates an admin server.
-func New(cfg Config) *Server {
+//
+// It fails rather than starting with a hash it cannot use. The alternative is
+// worse than it sounds: a Server that boots with an unusable hash answers every
+// login with "invalid credentials", and the operator goes looking for a broken
+// password instead of a broken file.
+func New(cfg Config) (*Server, error) {
 	if cfg.SessionTTL <= 0 {
 		cfg.SessionTTL = 12 * time.Hour
 	}
-	s := &Server{cfg: cfg, pwHash: cfg.PasswordHash}
-	// The hash file takes priority (and is also written on password change).
-	if cfg.PasswordFile != "" {
-		if b, err := os.ReadFile(cfg.PasswordFile); err == nil {
-			if h := strings.TrimSpace(string(b)); h != "" {
-				s.pwHash = h
-			}
-		}
+	s := &Server{cfg: cfg}
+	hash, err := initialHash(cfg)
+	if err != nil {
+		return nil, err
 	}
-	return s
+	if err := s.publish(hash); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
-func (s *Server) currentHash() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.pwHash
+// initialHash picks the hash to start from. The file wins over the environment
+// when it exists, because a password change writes it there.
+//
+// The three ways a file can fail are not one case. Absent means nobody has
+// changed the password yet, and falling back to the environment is how every
+// clean deployment starts. Unreadable and empty are different: a hash was
+// written and we cannot see it, so starting on the environment value would
+// quietly restore the password that was replaced — the old one works, the new
+// one does not, and nothing says why. An empty file in particular is what a
+// torn write leaves behind.
+func initialHash(cfg Config) (string, error) {
+	if cfg.PasswordFile == "" {
+		return cfg.PasswordHash, nil
+	}
+	b, err := os.ReadFile(cfg.PasswordFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return cfg.PasswordHash, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("admin: password file %s: %w", cfg.PasswordFile, err)
+	}
+	h := strings.TrimSpace(string(b))
+	if h == "" {
+		return "", fmt.Errorf("admin: password file %s is empty", cfg.PasswordFile)
+	}
+	return h, nil
 }
+
+// publish validates a hash and makes it current. Every path that changes the
+// password goes through here — the constructor included, since that is where
+// the only two direct assignments used to live.
+//
+// The validation is not about distrusting HashPassword. It is about never
+// putting into service, or onto disk, something we will not be able to read
+// back: the file outlives the binary, and a hash that fails to decode after a
+// restart locks the administrator out with no way back in.
+//
+// The error names the defect but never the hash. It goes to a log collector
+// that outlives the password.
+func (s *Server) publish(hash string) error {
+	if err := security.ValidateHash(hash); err != nil {
+		return fmt.Errorf("admin: password hash: %w", err)
+	}
+	s.cred.Store(&credential{hash: hash, fp: security.PasswordFingerprint(hash)})
+	return nil
+}
+
+func (s *Server) current() credential {
+	if c := s.cred.Load(); c != nil {
+		return *c
+	}
+	return credential{}
+}
+
+func (s *Server) currentHash() string { return s.current().hash }
 
 // Handler returns an http.Handler with all routes and middleware.
 func (s *Server) Handler() http.Handler {
@@ -183,7 +266,7 @@ func (s *Server) issueSession(w http.ResponseWriter, r *http.Request) (string, e
 		User:    s.cfg.AdminUser,
 		CSRF:    csrf,
 		Created: time.Now(),
-		PwFP:    security.PasswordFingerprint(s.currentHash()),
+		PwFP:    s.current().fp,
 	}
 	if err := s.cfg.Sessions.Create(r.Context(), token, sess, s.cfg.SessionTTL); err != nil {
 		return "", err
@@ -229,18 +312,36 @@ func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
+	// One lock around the whole change. The write and the switch have to land
+	// in the same order for everyone: with two changes in flight, the disk
+	// keeps whichever renamed last while memory keeps whichever locked last,
+	// and the process then runs on a password the file does not hold. Nothing
+	// reveals that until the next restart.
+	s.pwWrite.Lock()
+	defer s.pwWrite.Unlock()
+
+	// Validate before the file, not after. A hash that cannot be decoded must
+	// never reach disk: the file outlives this process, and the next start
+	// would refuse to boot with no way left to log in and fix it.
+	if err := security.ValidateHash(hash); err != nil {
+		s.logWarn("refusing to store an unusable password hash", "err", err)
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
 	// Persist first, switch in memory second: a failed write must not leave the
 	// process running on a password that survives no restart.
 	if s.cfg.PasswordFile != "" {
-		if err := os.WriteFile(s.cfg.PasswordFile, []byte(hash), 0o600); err != nil {
+		if err := writeFileAtomic(s.cfg.PasswordFile, []byte(hash), 0o600); err != nil {
 			s.logWarn("password file write failed", "err", err)
 			writeErr(w, http.StatusInternalServerError, "failed to save (check KUZTDS_ADMIN_PASSWORD_FILE)")
 			return
 		}
 	}
-	s.mu.Lock()
-	s.pwHash = hash
-	s.mu.Unlock()
+	if err := s.publish(hash); err != nil {
+		s.logWarn("password hash published after the write failed validation", "err", err)
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
 
 	// Every session issued under the old password is now invalid, including
 	// this one — hand the caller a fresh cookie and CSRF token so the panel
@@ -578,7 +679,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		}
 		// A session issued under a previous password is dead: changing the
 		// password must kick out everyone who holds an older cookie.
-		if !security.EqualTokens(sess.PwFP, security.PasswordFingerprint(s.currentHash())) {
+		if !security.EqualTokens(sess.PwFP, s.current().fp) {
 			_ = s.cfg.Sessions.Delete(r.Context(), c.Value)
 			writeErr(w, http.StatusUnauthorized, "unauthorized")
 			return
