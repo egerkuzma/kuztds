@@ -107,7 +107,7 @@ it routes. An unknown first segment falls through to the trash mode.
 ## Admin web interface
 
 Shell: **left sidebar** (icon navigation), **top bar on the right** (period
-picker, Settings gear, user chip, log-out button). Dark theme.
+picker, Settings gear, user chip, log-out button). Light theme in the GitHub (Primer) style.
 
 Sections: **Dashboard** (filled chart + breakdowns by country/device/OS/
 browser/brand/group/source), **Logs** (filters as **dropdown lists with
