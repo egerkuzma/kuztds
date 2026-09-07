@@ -47,9 +47,6 @@ func main() {
 		Limiter:      allowAll{},
 		Log:          log,
 	}
-	if cfg.PasswordHash == "" {
-		log.Warn("KUZTDS_ADMIN_PASSWORD_HASH not set — login is impossible. Generate one: go run ./cmd/admin -hash 'password'")
-	}
 
 	// Redis: sessions (survive restart) + login rate-limit.
 	if a := os.Getenv("KUZTDS_REDIS_ADDR"); a != "" {

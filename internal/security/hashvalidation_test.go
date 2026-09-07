@@ -78,3 +78,12 @@ func TestBadHashErrorNamesTheDefectNotTheSecret(t *testing.T) {
 		t.Errorf("error %q leaks the hash", err)
 	}
 }
+
+// p has an upper bound too: every lane is a goroutine, and the gate in the
+// admin multiplies whatever a hash asks for.
+func TestValidateHashBoundsThreads(t *testing.T) {
+	enc := "$argon2id$v=19$m=65536,t=3,p=255$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g"
+	if err := ValidateHash(enc); err == nil {
+		t.Fatal("p=255 must be rejected")
+	}
+}

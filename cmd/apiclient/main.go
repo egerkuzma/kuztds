@@ -162,10 +162,17 @@ func seByReferer(ref string) string {
 }
 
 func langOf(r *http.Request) string {
-	if al := r.Header.Get("Accept-Language"); len(al) >= 2 {
-		return strings.ToLower(al[:2])
+	al := r.Header.Get("Accept-Language")
+	if len(al) < 2 {
+		return "-"
 	}
-	return "-"
+	// Two ASCII letters or nothing — the engine applies the same rule.
+	for i := 0; i < 2; i++ {
+		if c := al[i]; !(c >= '0' && c <= '9' || c|0x20 >= 'a' && c|0x20 <= 'z') {
+			return "-"
+		}
+	}
+	return strings.ToLower(al[:2])
 }
 
 func extraParams(r *http.Request) []string {

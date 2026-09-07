@@ -417,9 +417,27 @@ func b2yn(b bool) string {
 
 func langOf(r *http.Request) string {
 	if al := r.Header.Get("Accept-Language"); len(al) >= 2 {
-		return strings.ToLower(al[:2])
+		return isoCode(al[:2])
 	}
 	return router.Empty
+}
+
+// isoCode lower-cases a two-character code and returns router.Empty for
+// anything else. Country and language codes arrive in headers any visitor can
+// set, and both end up in file names via [RANDLINE-([COUNTRY].dat)-1]: two
+// ASCII alphanumerics cannot name a file the operator did not intend. Digits
+// are allowed for Cloudflare's own markers, XX (unknown) and T1 (Tor).
+func isoCode(s string) string {
+	if len(s) != 2 {
+		return router.Empty
+	}
+	for i := 0; i < 2; i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9' || c|0x20 >= 'a' && c|0x20 <= 'z') {
+			return router.Empty
+		}
+	}
+	return strings.ToLower(s)
 }
 
 func refOrEmpty(ref string) string {

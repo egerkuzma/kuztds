@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egerkuzma/kuztds/internal/config"
@@ -34,12 +36,15 @@ const (
 func remoteValue(fc *fetch.Client, ctx context.Context, rm config.Remote, ip, country, city, lang, key string) string {
 	ctx, cancel := context.WithTimeout(ctx, remoteTimeout)
 	defer cancel()
+	// Every value is query-escaped, as render.Expand does for [KEY]. Pasted in
+	// raw, the visitor's ?q= became extra parameters on the partner request —
+	// "a&admin=1" is one key to us and two to them.
 	u := rm.URL
-	u = strings.ReplaceAll(u, "[IP]", ip)
-	u = strings.ReplaceAll(u, "[COUNTRY]", country)
-	u = strings.ReplaceAll(u, "[CITY]", city)
-	u = strings.ReplaceAll(u, "[LANG]", lang)
-	u = strings.ReplaceAll(u, "[KEY]", key)
+	u = strings.ReplaceAll(u, "[IP]", url.QueryEscape(ip))
+	u = strings.ReplaceAll(u, "[COUNTRY]", url.QueryEscape(country))
+	u = strings.ReplaceAll(u, "[CITY]", url.QueryEscape(city))
+	u = strings.ReplaceAll(u, "[LANG]", url.QueryEscape(lang))
+	u = strings.ReplaceAll(u, "[KEY]", url.QueryEscape(key))
 	ttl := time.Duration(rm.Cache) * time.Second
 	val, err := fc.GetCached("remote:"+u, ttl, func() (string, error) {
 		body, err := fc.Get(ctx, u)
@@ -119,9 +124,73 @@ func regexFirst(raw, subject string) string {
 }
 
 // replaceCI is a case-insensitive replacement (equivalent to str_ireplace).
+//
+// This runs on every CURL request, cached body or not, once per rule. With a
+// regexp per rule, 20 rules on an 8 KB page measured 1.4 ms per request — more
+// than the rest of the pipeline — and caching the compiled pattern only took
+// the allocations away, not the time: the cost is the regexp scanning the body.
+// An ASCII find therefore takes a plain path: fold the body's ASCII case once
+// (length-preserving, so indexes line up) and let strings.Index do the scan.
+// A find with non-ASCII letters still goes through (?i), where Unicode folding
+// is the point.
 func replaceCI(s, find, repl string) string {
 	if find == "" {
 		return s
 	}
-	return regexp.MustCompile("(?i)"+regexp.QuoteMeta(find)).ReplaceAllString(s, repl)
+	if !isASCII(find) {
+		return ciPattern(find).ReplaceAllString(s, repl)
+	}
+	lf := asciiLower(find)
+	ls := asciiLower(s)
+	i := strings.Index(ls, lf)
+	if i < 0 {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i >= 0 {
+		b.WriteString(s[:i])
+		b.WriteString(repl)
+		s, ls = s[i+len(find):], ls[i+len(find):]
+		i = strings.Index(ls, lf)
+	}
+	b.WriteString(s)
+	return b.String()
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
+// asciiLower folds A–Z only, so len(out) == len(s) and byte offsets into the
+// folded copy address the same characters in the original.
+func asciiLower(s string) string {
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'A' && c <= 'Z' {
+			b := []byte(s)
+			for ; i < len(b); i++ {
+				if b[i] >= 'A' && b[i] <= 'Z' {
+					b[i] += 'a' - 'A'
+				}
+			}
+			return string(b)
+		}
+	}
+	return s
+}
+
+var ciCache sync.Map // find → *regexp.Regexp
+
+func ciPattern(find string) *regexp.Regexp {
+	if re, ok := ciCache.Load(find); ok {
+		return re.(*regexp.Regexp)
+	}
+	re := regexp.MustCompile("(?i)" + regexp.QuoteMeta(find))
+	ciCache.Store(find, re)
+	return re
 }

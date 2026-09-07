@@ -79,6 +79,9 @@ const (
 	minTime    = 1
 	maxTime    = 16
 	minThreads = 1
+	// maxThreads: each lane is a goroutine; a hash claiming p=255 spawns 255
+	// of them per verification, times the slots the admin runs at once.
+	maxThreads = 64
 )
 
 // ValidateHash reports whether an encoded hash can be used for verification.
@@ -112,8 +115,8 @@ func decodeHash(encoded string) (params, []byte, []byte, error) {
 	if p.time < minTime || p.time > maxTime {
 		return fail("t=%d outside %d..%d", p.time, minTime, maxTime)
 	}
-	if p.threads < minThreads {
-		return fail("p=%d below %d", p.threads, minThreads)
+	if p.threads < minThreads || p.threads > maxThreads {
+		return fail("p=%d outside %d..%d", p.threads, minThreads, maxThreads)
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
