@@ -2,7 +2,7 @@
 
 # STATUS — where we are and how to continue
 
-Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
+Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
 
 ## Done (in `main`, tests green)
 - **Phases 1–7**: ipindex (+hot-reload), realip, geo (mmdb/Nop) + detect
@@ -54,8 +54,10 @@ Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
      only when the window was positive, so an enabled firewall with `seconds: 0`
      left an immortal Redis key and blocked the IP forever. Same shape for a
      type-2 stream limit with no period. Counters now go through
-     `incrWithTTL()`, which guarantees an expiry and drops the key if `EXPIRE`
-     fails (`redis.go`).
+     `incrWithTTL()`, which guarantees an expiry (`redis.go`). *Since #14 the
+     helper is one atomic Lua script (`INCR` + `PEXPIRE`); the earlier
+     delete-on-failed-`EXPIRE` compensation is gone because there is nothing
+     left to compensate for.*
   4. **`save_ip` appended duplicates until the next hot-reload.** Dedup was done
      against the in-memory index, which only catches up once a minute, so every
      hit from the same crawler IP added another line to `ip_<se>.dat`. A process-level
@@ -85,32 +87,68 @@ Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
   the filter never goes live pointing at a list that was never read.
   `cmd/engine/reload.go` + `reload_test.go`.
 
-## Tests (coverage as of 2026-08-20)
+- **Hardening pass (2026-08-27 → 2026-09-07; #13, #14, #16–#19, #21–#25, #27 —
+  #15 superseded by #24, #20 and #26 closed unmerged).** Grouped by what each
+  protects:
+
+  *Hot path, correctness.* A failed CURL fetch is no longer served as a normal
+  page — the partner's error body used to be rendered under our own 200 and
+  logged as an ordinary serve (#13). The `[REMOTE]` value is spliced in **after**
+  `render.Expand`, so a partner returning `[RANDLINE-(secret.dat)-1]` can no
+  longer make the engine read a file from the data dir and serve it (#18). The
+  stream limit is taken in one atomic step instead of read-then-increment, which
+  used to overshoot by roughly the concurrency — 114 serves on a limit of 100
+  under 64 goroutines, exactly 100 after (#14).
+
+  *Load and lifetime.* logbuf accumulates and inserts in separate goroutines, so
+  a slow ClickHouse no longer blinds the buffer at the rate of having no buffer
+  at all; shutdown has one owner and two sequential budgets, and a full batch
+  queue is its own loss cause, `Losses.Queue` (#19). The fetch cache is bounded
+  by bytes and sweeps expired entries — its keys carry `[IP]`/`[CID]`/`[PAR-n]`,
+  so it grew by one entry per visitor forever (#24). The HTTP client has a real
+  transport with an outbound ceiling; `net/http` defaults to 2 idle connections
+  per host and no cap at all on simultaneous ones (#16). Separation lists are
+  held in memory instead of being read from disk on every request (#17).
+
+  *Admin.* Login hardening — `SECURITY.md` §3 (#21, #22, #23 via #25).
+
+- **Process note.** #15–#17 were a stack: each targeted the previous *branch*
+  rather than `main`. #13 landed first, the chain snapped, and GitHub reported
+  the rest as MERGED — which was true of the branches and false of `main`. The
+  transport and seplist work sat outside `main` for eleven days until #27 carried
+  it over; the login half (#23 into #21's branch) was caught earlier by #25.
+  Worth remembering before stacking PRs again: merged into a branch is not
+  merged.
+
+## Tests (coverage as of 2026-09-07)
 Run: `go test ./...` (unit) and `go test -tags=integration ./...` (with
 CH+Redis). `go vet ./...` — clean. Coverage command:
 `go test -tags=integration ./... -cover`.
 
 | Package | Coverage | Note |
 |---------|:--:|---|
-| internal/fetch | 96.9% | httptest + `now` override for TTL |
-| internal/logbuf | 93.6% | |
-| internal/security | 84.3% | |
+| internal/fetch | 98.6% | httptest + `now` override for TTL |
+| internal/logbuf | 90.9% | |
+| internal/security | 87.3% | |
 | internal/ipindex | 83.7% | |
 | internal/geo | 82.6% | mmdb test |
 | internal/router | 81.9% | + regression country/lang values-only |
+| internal/seplist | 80.5% | separation lists in memory, hot-reload, malformed lines |
 | internal/detect | 80.5% | |
 | internal/render | 80.5% | |
 | internal/config | 80.0% | |
 | internal/store | 77.0% * | miniredis (Counters/sessions) + CH under `-tags=integration` |
-| internal/admin | 74.7% | login/CSRF/groups/lists/keys/password/export + file stores + SPA (web_test.go) |
+| internal/admin | 75.2% | login/CSRF/groups/lists/keys/password/export + file stores + SPA (web_test.go) |
 | internal/server | 73.2% | |
+| cmd/engine | 72.1% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios: all redirect types, all macros, bots, geo, filters, operators, distribution, limits, firewall, separation, schedule, chance, api mode, traffic matrix) |
 | cmd/apiclient | 71.6% | round-trip with a fake TDS (`newClientHandler`) |
-| cmd/engine | 66.1% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios: all redirect types, all macros, bots, geo, filters, operators, distribution, limits, firewall, separation, schedule, chance, api mode, traffic matrix) |
 | cmd/admin | 0% | only the `main()` wiring; the logic is in internal/admin |
 
-\* `internal/store` was not re-measured on 2026-08-20: ClickHouse was not
-running, so the `integration` tests skip (29.7% without them). The 77.0% figure
-is the last measurement with ClickHouse up.
+\* `internal/store` measured 27.5% on 2026-09-07 with ClickHouse down (the
+`integration` tests skip; plain `go test ./... -cover`). The 77.0% shown is the
+last run with ClickHouse up, from 2026-06-07 — before #14 (`TakeLimit`), #21
+and #23 touched the package, so treat it as a stale upper reference, not the
+current figure.
 
 Refactor for testability: hot-path handlers were extracted from `main()`
 closures into `cmd/engine/handler.go` (`engineDeps.root`) and `cmd/apiclient`

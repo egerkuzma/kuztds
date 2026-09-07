@@ -111,7 +111,7 @@ not like a script.**
   (fetch + find/replace), `api_mac` (mac code in API responses).
 
 **Operations:**
-- Group config, IP lists and bot signatures are re-read in the background when
+- Group config, IP lists, separation lists and bot signatures are re-read in the background when
   their files change — admin edits go live without restarting the engine.
 - A malformed or missing config is skipped and retried, leaving the running
   rules in place.
@@ -119,7 +119,7 @@ not like a script.**
 **Uniqueness & protection:**
 - Uniqueness by IP (Redis) or by cookie (dedicated cookie, correct TTL).
 - Anti-flood (max requests per IP per window).
-- Login rate-limit (Redis sliding window).
+- Login rate-limit (Redis, fixed window per IP).
 
 **Analytics & admin:**
 - Dashboard with a time chart and breakdowns (country/device/OS/browser/brand/
@@ -176,8 +176,9 @@ HTTP request
   ├─ uniqueness: cookie | Redis SETNX
   ├─ router.Select(group, visitor)  → first stream that passes all filters
   ├─ bot detection by the SELECTED stream's toggles → bot_redirect (or skip)
-  ├─ separation · [REMOTE] · chance · distribution (|||) · api_mac
-  ├─ render: macros + redirect type (CURL = fetch+find/replace; api = JSON)
+  ├─ separation · fetch [REMOTE] · chance · distribution (|||) · api_mac
+  ├─ render: macros + redirect type (CURL = fetch+find/replace; api = JSON);
+  │  the [REMOTE] body is spliced in AFTER macro expansion, never rescanned
   ├─ collect keywords (save_keys / keys_se)
   └─ async batch log → ClickHouse  (the response never waits for the write)
 ```
@@ -563,7 +564,7 @@ breakdown}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/logs/export`,
 ## Testing
 
 ```bash
-go test ./...                              # unit tests (14 packages)
+go test ./...                              # unit tests (15 packages)
 go test -tags=integration ./...            # + ClickHouse/Redis round-trips (needs make infra-up)
 go test -tags=uitest ./internal/admin/     # checks the embedded SPA's JS parses (needs node)
 go vet ./...
@@ -589,6 +590,7 @@ cmd/
 internal/
   ipindex/      CIDR index O(log n) + list manager with hot-reload
   config/       group/stream model + JSON loader (hot-reload)
+  seplist/      separation lists in memory (hot-reload)
   geo/          MMDB (MaxMind) / Nop resolver
   detect/       device + OS/browser/brand + bots, signatures
   router/       stream selection (predicates)

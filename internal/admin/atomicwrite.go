@@ -10,9 +10,11 @@ import (
 //
 // os.WriteFile truncates first and writes second. Kill the process between the
 // two and the file is empty; run out of disk and it is half a record. For the
-// password hash both outcomes are worse than they look: an empty file reads as
-// "no hash here" and silently falls back to whatever the environment says,
-// which is the password from before the change.
+// password hash either outcome now stops the server from starting (initialHash
+// refuses an empty or unreadable file) — an improvement on the older behaviour,
+// where an empty file read as "no hash here" and silently fell back to the
+// environment value, i.e. the password from before the change. Atomic writes
+// keep the file from getting into that state in the first place.
 //
 // mode is a parameter rather than a constant because the two callers differ: a
 // list is 0o644, a password hash is 0o600, and a helper that hardcodes the
