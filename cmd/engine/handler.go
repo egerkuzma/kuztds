@@ -205,12 +205,17 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	g := d.geores.Resolve(ip)
 	// Country from Cloudflare if mmdb returned no answer.
 	country := g.Country
-	if apiMode && apiReq.CFCountry != "" && apiReq.CFCountry != "-" {
-		country = strings.ToLower(apiReq.CFCountry)
-	} else if country == geo.Empty {
-		if cc := r.Header.Get("CF-IPCountry"); cc != "" {
-			country = strings.ToLower(cc)
+	// Both sources are untrusted input: CF-IPCountry is read from the raw
+	// request (the trusted-proxy list gates X-Forwarded-For, not this header),
+	// and api.cf_country is whatever the client sent. A country is two letters;
+	// anything else is dropped rather than passed into the log, the response
+	// header and — through [RANDLINE-([COUNTRY].dat)-1] — a file name.
+	if apiMode {
+		if cc := isoCode(apiReq.CFCountry); cc != geo.Empty {
+			country = cc
 		}
+	} else if country == geo.Empty {
+		country = isoCode(r.Header.Get("CF-IPCountry"))
 	}
 
 	// 3.5) Uniqueness: the api client sends its own; otherwise cookie/Redis.

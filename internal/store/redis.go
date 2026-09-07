@@ -80,9 +80,16 @@ const defaultWindow = time.Minute
 // block. The previous Go version compensated by deleting the key when EXPIRE
 // failed — throwing away a live counter to avoid an immortal one. With the two
 // operations in a single script there is nothing to compensate for.
+//
+// The TTL is also stamped on a key that turns out to have none. Deployments
+// that upgraded carry such keys from before the fix — an IP banned by a lost
+// EXPIRE months ago — and "on the first increment only" would leave them
+// banned until someone flushed Redis by hand. PTTL is one hash lookup inside
+// the same script; it costs nothing measurable and heals every legacy key on
+// its next hit.
 var incrTTLScript = redis.NewScript(`
 local n = redis.call('INCR', KEYS[1])
-if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+if n == 1 or redis.call('PTTL', KEYS[1]) == -1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
 return n
 `)
 
@@ -107,7 +114,7 @@ local lim = tonumber(ARGV[2])
 local n = tonumber(redis.call('GET', KEYS[1]) or '0')
 if n >= lim then return -1 end
 n = redis.call('INCR', KEYS[1])
-if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+if n == 1 or redis.call('PTTL', KEYS[1]) == -1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
 return n
 `)
 
