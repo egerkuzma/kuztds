@@ -49,12 +49,12 @@ func curlEnv(t *testing.T, groups *config.Groups, trashMode string) (http.Handle
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", d.root)
 	stop := func() {
-		cancel()
-		select {
-		case <-buf.Done():
-		case <-time.After(5 * time.Second):
-			t.Fatal("logbuf did not drain")
+		cctx, ccancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer ccancel()
+		if err := buf.Close(cctx); err != nil {
+			t.Fatalf("logbuf did not drain: %v", err)
 		}
+		cancel()
 	}
 	return realIP.Middleware(mux), ins, stop
 }

@@ -346,6 +346,32 @@ written to files in the repo**. Full reference: [`docs/USAGE.md`](docs/USAGE.md)
 | `KUZTDS_KEYS_DIR` | directory for collected keywords |
 | `KUZTDS_TRASH_MODE` / `_URL` | behaviour for an unknown group (0=200,1=redirect,2=403,3=404) |
 
+### Shutdown budget
+
+On `SIGTERM` the engine drains in two sequential phases, ten seconds each:
+`http.Server.Shutdown` for in-flight requests, then the log buffer for events
+that have not reached ClickHouse yet. **Give the process at least 25 seconds to
+stop.**
+
+The budgets are separate on purpose: sharing one deadline meant a busy server
+could spend all of it and hand the log drain a context that was already dead.
+
+Defaults are shorter than that almost everywhere — Docker stops a container
+10 seconds after `SIGTERM`, and systemd's `TimeoutStopSec` is often lower than
+you think. A `SIGKILL` in the middle of the drain costs the last batch of events
+*and* the `engine stopped` line that reports what was lost.
+
+```yaml
+services:
+  engine:
+    stop_grace_period: 30s
+```
+
+```ini
+[Service]
+TimeoutStopSec=30
+```
+
 ### Admin (most-used)
 | Variable | Purpose |
 |----------|---------|
