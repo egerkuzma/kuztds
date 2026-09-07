@@ -104,7 +104,7 @@ func main() {
 	apiKey := os.Getenv("KUZTDS_API_KEY") // key for ?api= mode (clients)
 
 	// HTTP fetcher for CURL redirect and [REMOTE] (with in-memory cache).
-	fetcher := fetch.New(getenv("KUZTDS_CURL_UA", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0"))
+	fetcher := fetch.New(getenv("KUZTDS_CURL_UA", "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0"), log)
 	curlCacheMin := 60
 	if v := os.Getenv("KUZTDS_CURL_CACHE"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {

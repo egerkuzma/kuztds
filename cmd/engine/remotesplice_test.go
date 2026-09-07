@@ -30,7 +30,7 @@ func TestRemoteBodyCannotPickVariants(t *testing.T) {
 	defer srv.Close()
 
 	h := testEnv(t, remoteStream(srv.URL, "random", "RESERVED"), func(d *engineDeps) {
-		d.fetcher = fetch.New("test")
+		d.fetcher = fetch.New("test", nil)
 	})
 	for i := 0; i < 20; i++ {
 		if body := do(t, h, "/g1", "8.8.8.8", nil).Body.String(); body != "RESERVED" {
@@ -54,7 +54,7 @@ func TestRemoteBodyIsNotMacroExpanded(t *testing.T) {
 	defer srv.Close()
 
 	h := testEnv(t, remoteStream(srv.URL, "", ""), func(d *engineDeps) {
-		d.fetcher = fetch.New("test")
+		d.fetcher = fetch.New("test", nil)
 		d.dataDir = dir
 	})
 	if body := do(t, h, "/g1", "8.8.8.8", nil).Body.String(); body != "[RANDLINE-(secret.dat)-1]" {
