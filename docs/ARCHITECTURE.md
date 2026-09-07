@@ -105,7 +105,8 @@ parameterized CH queries · JSON only · secrets out of VCS · output escaping.
 
 ## Observability (planned/partial)
 `slog` structured logs and `/healthz`, which carries the log-loss counters in
-`X-Events-Lost` / `X-Events-Lost-Detail` (`full` = buffer overflow, `insert` =
-storage rejected the batch, `late` = pushed during shutdown) so a failing
-ClickHouse does not look like a healthy one. The same numbers are logged on
+`X-Events-Lost` / `X-Events-Lost-Detail` (`full` = the intake channel was full,
+so the accumulator could not keep up; `queue` = the batch queue was full, so the
+writer could not; `insert` = storage rejected the batch; `late` = pushed during
+shutdown) so a failing ClickHouse does not look like a healthy one. The same numbers are logged on
 exit. `/metrics` (Prometheus) and `pprof` — in TODO.
