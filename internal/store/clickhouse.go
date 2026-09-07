@@ -121,9 +121,86 @@ var breakdownDims = map[string]string{
 	"domain": "domain", "city": "city", "lang": "lang",
 }
 
-// DeleteGroupLogs deletes a group's events (ALTER ... DELETE, asynchronous mutation).
+// DeleteGroupLogs deletes a group's events (ALTER ... DELETE, asynchronous
+// mutation). The key is the group's ID — the stable routing identifier the
+// admin panel knows — not its display name, which is free text and may be
+// empty or shared.
 func (c *CH) DeleteGroupLogs(ctx context.Context, group string) error {
-	return c.conn.Exec(ctx, "ALTER TABLE events DELETE WHERE group_name = ?", group)
+	return c.conn.Exec(ctx, "ALTER TABLE events DELETE WHERE group_id = ?", group)
+}
+
+// PerfRow — one group/stream cell of the performance table: traffic from
+// events, conversions from postbacks. Stream "-" is the group's fallback
+// (no stream matched).
+type PerfRow struct {
+	GroupID string  `json:"group_id"`
+	Group   string  `json:"group"`
+	Stream  string  `json:"stream"`
+	Hits    int64   `json:"hits"`
+	Unique  int64   `json:"unique"`
+	Bots    int64   `json:"bots"`
+	Conv    int64   `json:"conv"`
+	Profit  float64 `json:"profit"`
+}
+
+// Performance aggregates events and postbacks per group and stream over a
+// period. Two GROUP BY queries merged in Go rather than one JOIN: postbacks
+// carry no group_id, and a JOIN across two MergeTree tables on free-text
+// names is slower on ClickHouse than two scans plus a map lookup. Rows are
+// ordered by hits, descending; a stream with conversions but no events in
+// the window still appears, with zero hits.
+func (c *CH) Performance(ctx context.Context, from, to time.Time) ([]PerfRow, error) {
+	rows, err := c.conn.Query(ctx,
+		`SELECT group_id, group_name, stream_name,
+		        count() AS hits, countIf(uniq = 1) AS uniq,
+		        countIf(bot != '' AND bot != '-') AS bots
+		 FROM events WHERE ts >= ? AND ts < ?
+		 GROUP BY group_id, group_name, stream_name
+		 ORDER BY hits DESC LIMIT 2000`, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type key struct{ group, stream string }
+	var out []PerfRow
+	index := map[key]int{}
+	for rows.Next() {
+		var p PerfRow
+		var hits, uniq, bots uint64
+		if err := rows.Scan(&p.GroupID, &p.Group, &p.Stream, &hits, &uniq, &bots); err != nil {
+			return nil, err
+		}
+		p.Hits, p.Unique, p.Bots = int64(hits), int64(uniq), int64(bots)
+		index[key{p.Group, p.Stream}] = len(out)
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	pbs, err := c.conn.Query(ctx,
+		`SELECT group_name, stream_name, count() AS conv, sum(profit) AS profit
+		 FROM postbacks WHERE ts >= ? AND ts < ?
+		 GROUP BY group_name, stream_name`, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer pbs.Close()
+	for pbs.Next() {
+		var group, stream string
+		var conv uint64
+		var profit float64
+		if err := pbs.Scan(&group, &stream, &conv, &profit); err != nil {
+			return nil, err
+		}
+		i, ok := index[key{group, stream}]
+		if !ok {
+			i = len(out)
+			index[key{group, stream}] = i
+			out = append(out, PerfRow{Group: group, Stream: stream})
+		}
+		out[i].Conv, out[i].Profit = int64(conv), profit
+	}
+	return out, pbs.Err()
 }
 
 // Breakdown — a breakdown by dimension dim over a period (top limit).

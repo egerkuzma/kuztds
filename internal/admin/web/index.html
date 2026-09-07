@@ -4,8 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KuzTDS admin</title>
+<script>try{var t=localStorage.getItem('kuztds-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>
-  /* Primer (GitHub) light palette. Tokens only here; everything below reads them. */
+  /* Primer (GitHub) palette — light on :root, dark under [data-theme=dark]
+     or the system preference when nothing is chosen. Only tokens live here;
+     everything below reads them. */
   :root{
     --canvas:#ffffff;--canvas-subtle:#f6f8fa;--canvas-inset:#f6f8fa;
     --border:#d0d7de;--border-muted:#d8dee4;
@@ -15,111 +18,195 @@
     --attention:#9a6700;--attention-subtle:#fff8c5;
     --danger:#cf222e;--danger-subtle:#ffebe9;
     --done:#8250df;--done-subtle:#fbefff;
-    --current:#fd8c73;                    /* the coral bar on the selected nav item */
+    --current:#fd8c73;
     --btn-bg:#f6f8fa;--btn-hover:#f3f4f6;--btn-border:rgba(31,35,40,.15);--btn-shadow:0 1px 0 rgba(31,35,40,.04);
     --shadow-pop:0 8px 24px rgba(140,149,159,.2);
-    --r:6px;
-    --top:64px;
+    --logo-bg:#24292f;--logo-fg:#ffffff;
+    --focus:rgba(9,105,218,.3);
+    --chart-total:#0969da;--chart-bots:#e16f24;
+    --r:6px;--top:64px;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    color-scheme:light;
   }
+  :root[data-theme="dark"]{
+    --canvas:#0d1117;--canvas-subtle:#161b22;--canvas-inset:#010409;
+    --border:#30363d;--border-muted:#21262d;
+    --fg:#e6edf3;--fg-muted:#8b949e;--fg-subtle:#6e7681;
+    --accent:#4493f8;--accent-subtle:rgba(56,139,253,.15);--accent-muted:#1f6feb;
+    --success:#3fb950;--success-subtle:rgba(46,160,67,.15);--success-emph:#238636;
+    --attention:#d29922;--attention-subtle:rgba(187,128,9,.15);
+    --danger:#f85149;--danger-subtle:rgba(248,81,73,.1);
+    --done:#a371f7;--done-subtle:rgba(163,113,247,.15);
+    --current:#f78166;
+    --btn-bg:#21262d;--btn-hover:#30363d;--btn-border:rgba(240,246,252,.1);--btn-shadow:none;
+    --shadow-pop:0 8px 24px #010409;
+    --logo-bg:#e6edf3;--logo-fg:#0d1117;
+    --focus:rgba(68,147,248,.4);
+    --chart-total:#4493f8;--chart-bots:#db6d28;
+    color-scheme:dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --canvas:#0d1117;--canvas-subtle:#161b22;--canvas-inset:#010409;
+      --border:#30363d;--border-muted:#21262d;
+      --fg:#e6edf3;--fg-muted:#8b949e;--fg-subtle:#6e7681;
+      --accent:#4493f8;--accent-subtle:rgba(56,139,253,.15);--accent-muted:#1f6feb;
+      --success:#3fb950;--success-subtle:rgba(46,160,67,.15);--success-emph:#238636;
+      --attention:#d29922;--attention-subtle:rgba(187,128,9,.15);
+      --danger:#f85149;--danger-subtle:rgba(248,81,73,.1);
+      --done:#a371f7;--done-subtle:rgba(163,113,247,.15);
+      --current:#f78166;
+      --btn-bg:#21262d;--btn-hover:#30363d;--btn-border:rgba(240,246,252,.1);--btn-shadow:none;
+      --shadow-pop:0 8px 24px #010409;
+      --logo-bg:#e6edf3;--logo-fg:#0d1117;
+      --focus:rgba(68,147,248,.4);
+      --chart-total:#4493f8;--chart-bots:#db6d28;
+      color-scheme:dark;
+    }
+  }
+
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;font:14px/1.5 var(--font);background:var(--canvas);color:var(--fg);-webkit-font-smoothing:antialiased}
   a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
   ::selection{background:var(--accent-subtle)}
   code{font-family:var(--mono);font-size:85%;background:rgba(175,184,193,.2);padding:.15em .4em;border-radius:6px}
+  .mono{font-family:var(--mono);font-size:12.5px}
+  .num{font-variant-numeric:tabular-nums}
+  [hidden]{display:none!important}
 
   button{font:inherit;font-weight:500;cursor:pointer;color:var(--fg);background:var(--btn-bg);
     border:1px solid var(--btn-border);border-radius:var(--r);padding:5px 16px;line-height:20px;
     box-shadow:var(--btn-shadow);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:background .08s,border-color .08s}
-  button:hover{background:var(--btn-hover);border-color:rgba(31,35,40,.15)}
-  button:active{background:#ebecf0}
-  button.primary{color:#fff;background:var(--success-emph);border-color:rgba(31,35,40,.15);box-shadow:0 1px 0 rgba(31,35,40,.1)}
+  button:hover{background:var(--btn-hover);border-color:var(--border)}
+  button:disabled{opacity:.5;cursor:default}
+  button.primary{background:var(--success-emph);color:#fff;border-color:rgba(31,35,40,.15)}
   button.primary:hover{background:var(--success)}
-  button.ghost{background:transparent;border-color:transparent;box-shadow:none;color:var(--fg-muted)}
-  button.ghost:hover{background:var(--btn-hover);color:var(--fg)}
-  button.danger{color:var(--danger)}
-  button.danger:hover{color:#fff;background:#a40e26;border-color:rgba(31,35,40,.15)}
-  button:disabled{color:var(--fg-subtle);background:var(--canvas-subtle);cursor:default;box-shadow:none}
-  button:disabled:hover{background:var(--canvas-subtle)}
+  button.danger{color:var(--danger)} button.danger:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
+  button.ghost,button.link{background:transparent;border-color:transparent;box-shadow:none;color:var(--accent);padding:5px 8px}
+  button.link{padding:0;font-weight:500;line-height:inherit} button.link:hover{text-decoration:underline;background:transparent;border-color:transparent}
+  button.sm{padding:3px 12px;font-size:12px;line-height:18px}
+  button.active{background:var(--accent-subtle);border-color:var(--accent)}
+  .iconbtn{width:32px;height:32px;padding:0;justify-content:center;color:var(--fg-muted)}
+  .iconbtn.xs{width:24px;height:24px;border-radius:50%;background:transparent;border-color:transparent;box-shadow:none}
+  .iconbtn.xs:hover{background:var(--btn-hover);border-color:var(--border)}
   select,input,textarea{font:inherit;color:var(--fg);background:var(--canvas);border:1px solid var(--border);
     border-radius:var(--r);padding:5px 12px;line-height:20px;outline:none;transition:border-color .08s,box-shadow .08s}
-  select:focus,input:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(9,105,218,.3)}
-  select{background:var(--btn-bg);font-weight:500;padding-right:28px;appearance:none;-webkit-appearance:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23656d76'%3E%3Cpath d='M4.4 6.3a.75.75 0 0 1 1.06 0L8 8.85l2.54-2.55a.75.75 0 1 1 1.06 1.06l-3.07 3.07a.75.75 0 0 1-1.06 0L4.4 7.36a.75.75 0 0 1 0-1.06Z'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;background-position:right 8px center;background-size:16px}
+  select:focus,input:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus)}
+  select{appearance:none;-webkit-appearance:none;padding-right:28px;background-repeat:no-repeat;background-position:right 8px center;background-size:16px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23656d76'%3E%3Cpath d='M4.4 6.3a.75.75 0 0 1 1.06 0L8 8.85l2.54-2.55a.75.75 0 1 1 1.06 1.06l-3.07 3.07a.75.75 0 0 1-1.06 0L4.4 7.36a.75.75 0 0 1 0-1.06Z'/%3E%3C/svg%3E")}
+  input::placeholder,textarea::placeholder{color:var(--fg-subtle)}
   textarea{resize:vertical;line-height:1.5}
   svg.ic{width:16px;height:16px;flex:none;stroke:currentColor;stroke-width:1.75;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  h2{font-size:16px;font-weight:600;margin:24px 0 10px}
+  .muted{color:var(--fg-muted)} .ok{color:var(--success)} .err{color:var(--danger)} .att{color:var(--attention)}
+  .hint{font-size:12px;color:var(--fg-muted);margin-top:4px;font-weight:400}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .spacer{flex:1}
-  .muted{color:var(--fg-muted)} .err{color:var(--danger)} .ok{color:var(--success)}
-  .row{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
-  h2{font-size:12px;font-weight:600;color:var(--fg-muted);margin:24px 0 8px}
+  .min0{min-width:0}
+  .ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pill{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid transparent;white-space:nowrap;line-height:1}
+  .pill.on{color:var(--success);background:var(--success-subtle);border-color:var(--success)}
+  .pill.off{color:var(--fg-muted);background:var(--canvas-subtle);border-color:var(--border)}
+  .pill.bot{color:var(--attention);background:var(--attention-subtle);border-color:var(--attention)}
+  .pill.acc{color:var(--accent);background:var(--accent-subtle);border-color:var(--accent)}
+  .chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border:1px solid var(--border);border-radius:999px;background:var(--canvas-subtle);font-size:12px;color:var(--fg);white-space:nowrap;line-height:1;max-width:260px}
+  .chip .k{color:var(--fg-muted)} .chip .v{overflow:hidden;text-overflow:ellipsis}
+  .chip.any{color:var(--fg-muted);border-style:dashed;background:transparent}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--fg-subtle);border:1px solid rgba(31,35,40,.15)}
+  .dot.on{background:var(--success);border-color:var(--success)}
+  .sw{position:relative;display:inline-flex;width:32px;height:18px;flex:none;cursor:pointer;vertical-align:middle}
+  .sw input{position:absolute;opacity:0;width:0;height:0;margin:0}
+  .sw i{position:absolute;inset:0;border-radius:999px;background:var(--border);transition:background .12s}
+  .sw i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .12s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+  .sw input:checked+i{background:var(--success-emph)} .sw input:checked+i::after{transform:translateX(14px)}
+  .sw input:focus-visible+i{box-shadow:0 0 0 3px var(--focus)}
+  .swl{display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-top:10px}
+  .swl input{position:absolute;opacity:0;width:0;height:0} .swl i{position:relative;display:inline-block;width:32px;height:18px;border-radius:999px;background:var(--border);flex:none;transition:background .12s}
+  .swl i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .12s}
+  .swl input:checked+i{background:var(--success-emph)} .swl input:checked+i::after{transform:translateX(14px)}
   .panel{background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);padding:16px}
-  .state{color:var(--fg-muted);padding:32px 16px;text-align:center;border:1px dashed var(--border);border-radius:var(--r)}
+  .card{background:var(--canvas);border:1px solid var(--border);border-radius:var(--r)}
+  .state{padding:32px;text-align:center;color:var(--fg-muted);border:1px dashed var(--border);border-radius:var(--r)}
+  .state.err{color:var(--danger);border-color:var(--danger)}
+  .fld{margin-bottom:14px} .fld label{display:block;font-weight:600;font-size:13px;margin-bottom:6px}
+  .fld input[type=text],.fld input[type=number],.fld input[type=password],.fld input[type=date],.fld select,.fld textarea{width:100%}
+  .fld textarea{min-height:76px} .fld textarea.short{min-height:52px}
+  .g2c{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+  .g3c{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px}
+  .chk{display:flex;align-items:center;gap:8px;margin:10px 0}
+  .chk input{width:16px;height:16px;accent-color:var(--accent);margin:0}
 
-  /* ---------- LAYOUT ---------- */
+  /* ---- layout ---- */
   .layout{display:grid;grid-template-columns:256px 1fr;min-height:100vh}
-  .sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:2px;padding:16px 8px;
-    border-right:1px solid var(--border);background:var(--canvas-subtle)}
+  .sidebar{background:var(--canvas-subtle);border-right:1px solid var(--border);padding:16px 8px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh}
   .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 16px;margin-bottom:4px}
-  .brand .logo{width:32px;height:32px;border-radius:8px;background:#24292f;color:#fff;
-    display:grid;place-items:center;font-weight:700;font-size:15px}
-  .brand b{font-size:14px;font-weight:600}
-  .brand .sub{display:block;font-size:12px;color:var(--fg-muted);font-weight:400}
-  .navbtn{position:relative;justify-content:flex-start;width:100%;background:transparent;border:1px solid transparent;
-    box-shadow:none;color:var(--fg);padding:6px 8px;border-radius:var(--r);font-weight:400}
-  .navbtn svg{color:var(--fg-muted)}
-  .navbtn:hover{background:rgba(208,215,222,.32)}
-  .navbtn.active{background:rgba(208,215,222,.32);font-weight:600}
-  .navbtn.active::before{content:"";position:absolute;left:-8px;top:6px;bottom:6px;width:4px;border-radius:0 6px 6px 0;background:var(--current)}
+  .brand .logo{width:32px;height:32px;border-radius:8px;background:var(--logo-bg);color:var(--logo-fg);display:grid;place-items:center;font-weight:700;font-size:15px}
+  .brand b{display:block;font-weight:600;line-height:1.2} .brand .sub{display:block;font-size:12px;color:var(--fg-muted)}
   .nav-cap{font-size:12px;font-weight:600;color:var(--fg-muted);padding:16px 8px 4px}
-  .sb-foot{margin-top:auto;font-size:12px;color:var(--fg-muted);padding:12px 8px 4px;border-top:1px solid var(--border-muted)}
-
+  .nav-cap:first-of-type{padding-top:8px}
+  .navbtn{position:relative;justify-content:flex-start;width:100%;background:transparent;border:1px solid transparent;box-shadow:none;padding:5px 8px;font-weight:400;color:var(--fg)}
+  .navbtn svg{color:var(--fg-muted)}
+  .navbtn:hover{background:rgba(175,184,193,.2);border-color:transparent}
+  .navbtn.active{background:var(--accent-subtle);font-weight:600}
+  .navbtn.active::before{content:"";position:absolute;left:-8px;top:6px;bottom:6px;width:4px;border-radius:0 6px 6px 0;background:var(--current)}
+  .sb-foot{margin-top:auto;font-size:12px;color:var(--fg-muted);padding:12px 8px 4px;border-top:1px solid var(--border-muted);display:flex;align-items:center;gap:6px}
   .content{display:flex;flex-direction:column;min-width:0}
-  .topbar{position:sticky;top:0;z-index:8;display:flex;align-items:center;gap:12px;height:var(--top);
-    padding:0 24px;border-bottom:1px solid var(--border);background:var(--canvas)}
-  .topbar h1{font-size:20px;margin:0;font-weight:600}
-  .iconbtn{width:32px;height:32px;padding:0;justify-content:center;color:var(--fg-muted)}
-  .iconbtn:hover{color:var(--fg)}
-  .iconbtn.active{background:var(--accent-subtle);color:var(--accent);border-color:transparent}
-  .userchip{display:flex;align-items:center;gap:8px;padding:2px 2px 2px 4px;border:1px solid var(--border);border-radius:999px;background:var(--canvas)}
-  .userchip .av{width:24px;height:24px;border-radius:50%;background:#24292f;color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px;text-transform:uppercase}
+  .topbar{height:var(--top);display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--border);background:var(--canvas);position:sticky;top:0;z-index:20}
+  .topbar h1{font-size:20px;font-weight:600;margin:0}
+  .userchip{display:flex;align-items:center;gap:8px;padding:2px 2px 2px 4px;border:1px solid var(--border);border-radius:999px}
+  .userchip .av{width:24px;height:24px;border-radius:50%;background:var(--logo-bg);color:var(--logo-fg);display:grid;place-items:center;font-weight:600;font-size:12px;text-transform:uppercase}
   .userchip .nm{font-size:13px;font-weight:500}
   .userchip .iconbtn{width:28px;height:28px;border-radius:50%}
-  main{padding:24px;max-width:1280px;width:100%;margin:0 auto}
+  main{padding:24px;max-width:1320px;width:100%;margin:0 auto}
   main.locked{max-width:none;height:calc(100vh - var(--top));display:flex;flex-direction:column;overflow:hidden;padding-bottom:16px}
 
-  /* ---------- DASHBOARD ---------- */
-  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-  .card{position:relative;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);padding:16px 16px 14px}
-  .card .v{font-size:32px;font-weight:600;letter-spacing:-.5px;line-height:1.15;font-variant-numeric:tabular-nums}
-  .card.uniq .v{color:var(--success)} .card.bot .v{color:var(--attention)}
-  .card .l{color:var(--fg-muted);font-size:12px;font-weight:600;margin-top:4px}
-  .card .ico{position:absolute;top:14px;right:14px;color:var(--fg-subtle)}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .bars div{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
-  .bars .lbl{width:120px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .bars .bar{height:8px;background:var(--accent);border-radius:999px;min-width:3px}
-  .bars .n{color:var(--fg-muted);font-variant-numeric:tabular-nums}
-  canvas{width:100%;height:260px;display:block}
+  /* ---- login ---- */
+  .login-wrap{min-height:100vh;display:grid;place-items:center;background:var(--canvas-subtle)}
+  .login{width:340px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);padding:24px}
+  .login .brand{padding:0 0 16px} .login input{width:100%} .login button.primary{width:100%;justify-content:center}
 
-  /* ---------- TABLES ---------- */
+  /* ---- dashboard ---- */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+  .kpi{padding:14px 16px}
+  .kpi .v{font-size:26px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+  .kpi .l{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--fg-muted);margin-top:4px}
+  .kpi.bot .v{color:var(--attention)} .kpi.ok .v{color:var(--success)}
+  .ph{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap} .ph b{font-size:14px}
+  .ph .hint{margin:0}
+  .lg{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-muted)}
+  .lg i,.ctip i{display:inline-block;width:14px;height:0;border-top:2px solid var(--chart-total);vertical-align:middle}
+  .sw-uniq{border-top-style:dashed!important} .sw-bots{border-top-color:var(--chart-bots)!important}
+  .cwrap{position:relative} canvas{width:100%;height:260px;display:block}
+  .ctip{position:absolute;top:8px;left:0;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-pop);padding:8px 10px;font-size:12px;pointer-events:none;z-index:5;white-space:nowrap}
+  .ctip .t{font-weight:600;margin-bottom:4px} .ctip div{display:flex;gap:6px;align-items:center} .ctip b{margin-left:auto;padding-left:10px;font-variant-numeric:tabular-nums}
+  .chartbox,.perf{margin-bottom:16px}
+  .perft th{cursor:pointer;user-select:none} .perft th:hover{color:var(--fg)} .perft th.sorted{color:var(--fg)}
+  .perft th.num,.perft td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .perft tr.grp td{background:var(--canvas-subtle);font-weight:600}
+  .perft tr.grp td .muted{font-weight:400}
+  .perft tr.str td:first-child{padding-left:32px}
+  .bdrow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+  .bd{padding:12px 14px;min-width:0} .bd .bt{font-size:12px;font-weight:600;color:var(--fg-muted);margin-bottom:6px}
+  .bars div{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+  .bars .lbl{width:84px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bars .track{flex:1;height:8px;background:var(--canvas-subtle);border-radius:999px;overflow:hidden;min-width:20px}
+  .bars .bar{display:block;height:8px;background:var(--accent);border-radius:999px;min-width:3px}
+  .bars .n{color:var(--fg-muted);font-variant-numeric:tabular-nums;flex:none;min-width:36px;text-align:right}
+
+  /* ---- tables ---- */
   .tw{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
   table{width:100%;border-collapse:collapse;background:var(--canvas);font-size:13px}
   th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border-muted);white-space:nowrap}
   th{color:var(--fg-muted);font-weight:600;font-size:12px;background:var(--canvas-subtle)}
-  tbody tr:hover{background:var(--canvas-subtle)}
+  tbody tr:hover td{background:var(--canvas-subtle)}
   tr:last-child td{border-bottom:none}
   td.ell{max-width:240px;overflow:hidden;text-overflow:ellipsis}
-  .pill{display:inline-block;padding:0 7px;border-radius:999px;font-size:12px;font-weight:500;line-height:18px;border:1px solid transparent}
-  .pill.on{color:var(--success);border-color:rgba(26,127,55,.4);background:var(--success-subtle)}
-  .pill.off{color:var(--fg-muted);border-color:var(--border);background:var(--canvas-subtle)}
-  .pill.bot{color:var(--attention);border-color:rgba(154,103,0,.4);background:var(--attention-subtle)}
-  .flag{font-size:15px;margin-right:6px;vertical-align:-1px} .flag:empty{margin-right:0}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .flag{font-size:15px;margin-right:6px;vertical-align:-1px}
 
-  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
-  .toolbar input{padding:5px 12px}
   /* multi-select filter (dropdown with checkboxes) — a Primer SelectPanel */
   .msel{position:relative;display:inline-block}
   .msel-btn{gap:6px;font-weight:500}
@@ -127,7 +214,7 @@
   .msel-btn .arr{color:var(--fg-muted);font-size:11px}
   .msel.on .msel-btn{border-color:var(--accent);background:var(--accent-subtle)}
   .msel-pop{position:absolute;z-index:25;top:calc(100% + 4px);left:0;min-width:240px;max-height:320px;overflow:auto;
-    background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);padding:8px;box-shadow:var(--shadow-pop);display:none}
+    background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-pop);padding:8px;display:none}
   .msel.open .msel-pop{display:block}
   .msel-search{width:100%;margin-bottom:8px}
   .msel-tools{display:flex;gap:4px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border-muted)}
@@ -140,97 +227,136 @@
   .msel-empty{color:var(--fg-muted);font-size:12px;padding:6px 8px}
   textarea.code{width:100%;min-height:440px;font-family:var(--mono);font-size:12px;line-height:1.5;white-space:pre;tab-size:2;background:var(--canvas-subtle)}
 
-  /* ---------- LOGIN ---------- */
-  .login-wrap{display:grid;place-items:center;min-height:100vh;background:var(--canvas-subtle)}
-  .login{width:340px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);padding:24px}
-  .login .brand{justify-content:center;padding:0 0 20px;margin:0}
-  .login input{width:100%}
-  .login .fld{margin-bottom:16px}
-  .login button{width:100%;justify-content:center}
-
-  /* ---------- GROUPS EDITOR (master–detail) ---------- */
-  .gbar{display:flex;align-items:center;gap:8px;flex:none;margin-bottom:16px;flex-wrap:wrap}
-  .dirty{display:none;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--attention);
-    background:var(--attention-subtle);border:1px solid rgba(154,103,0,.3);border-radius:999px;padding:2px 10px}
-  .dirty.on{display:inline-flex}
-  .dirty .d{width:6px;height:6px;border-radius:50%;background:var(--attention)}
-  .ged{flex:1;min-height:0;display:grid;grid-template-columns:288px 1fr;gap:16px;align-items:stretch}
-
-  .glist{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
-    background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);padding:8px}
+  /* ---- groups editor: tree on the left, one pane on the right ---- */
+  .ged{flex:1;min-height:0;display:grid;grid-template-columns:264px 1fr;gap:16px}
+  .glist{border:1px solid var(--border);border-radius:var(--r);background:var(--canvas);padding:8px;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
   .gsearch{position:sticky;top:0;z-index:2;flex:none;width:100%;margin-bottom:6px;font-size:13px;background:var(--canvas)}
-  #gtree{display:flex;flex-direction:column;gap:1px}
-  .glist .gline{display:flex;align-items:center;gap:0}
+  .gline{display:flex;align-items:center;gap:2px;border-radius:var(--r)}
+  .gline.active{background:var(--accent-subtle)}
   .glist .chev{cursor:pointer;width:22px;height:28px;flex:none;display:grid;place-items:center;color:var(--fg-muted);user-select:none;border-radius:var(--r)}
-  .glist .chev:hover{background:var(--canvas-subtle);color:var(--fg)}
+  .glist .chev:hover{background:var(--btn-hover)}
   .glist .chev svg{width:12px;height:12px;transition:transform .12s}
   .glist .chev.open svg{transform:rotate(90deg)}
-  .glist .gnode{flex:1;min-width:0;justify-content:flex-start;text-align:left;background:transparent;border:1px solid transparent;box-shadow:none;
-    color:var(--fg);padding:4px 8px;border-radius:var(--r);font-weight:600;font-size:13px;gap:8px}
+  .glist .gnode{flex:1;min-width:0;justify-content:flex-start;text-align:left;background:transparent;border:1px solid transparent;box-shadow:none;padding:6px 8px 6px 4px;border-radius:var(--r);gap:8px;height:44px;font-weight:400}
   .glist .gnode:hover{background:var(--canvas-subtle)}
-  .glist .gnode.active{background:var(--accent-subtle);color:var(--accent)}
-  .glist .gnode .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .glist .gnode .cnt{margin-left:auto;font-size:12px;font-weight:500;color:var(--fg-muted);background:rgba(175,184,193,.2);border-radius:999px;padding:0 6px;line-height:18px;flex:none}
-  .glist .subtree{display:flex;flex-direction:column;gap:1px;margin:0 0 4px 18px;border-left:1px solid var(--border-muted);padding-left:6px}
-  .glist .snode{justify-content:flex-start;text-align:left;font-size:13px;color:var(--fg);padding:4px 8px;font-weight:400;
+  .gline.active .gnode{background:transparent}
+  .gnode .txt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+  .gnode .nm{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gline.active .gnode .nm{color:var(--accent)}
+  .gnode .sub{font-size:11.5px;color:var(--fg-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gnode .agg{text-align:right;flex:none;display:flex;flex-direction:column;line-height:1.25}
+  .gnode .agg .n{font-size:13px;font-variant-numeric:tabular-nums} .gnode .agg .c{font-size:11px;color:var(--fg-muted)}
+  .subtree{margin-left:22px;padding-left:8px;border-left:1px solid var(--border-muted);margin-bottom:4px}
+  .glist .snode{display:flex;align-items:center;width:100%;justify-content:flex-start;text-align:left;padding:4px 8px;font-size:13px;font-weight:400;
     background:transparent;border:1px solid transparent;box-shadow:none;border-radius:var(--r);gap:8px;min-width:0}
-  .glist .snode .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .glist .snode:hover{background:var(--canvas-subtle)}
-  .glist .snode.active{background:var(--accent-subtle);color:var(--accent);font-weight:600}
-  .glist .snode.add{color:var(--accent)}
-  .glist .none{color:var(--fg-muted);font-size:13px;padding:12px 8px;text-align:center}
-  .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--fg-subtle);border:1px solid rgba(31,35,40,.15)}
-  .dot.on{background:var(--success-emph);border-color:var(--success-emph)}
+  .glist .snode.active{background:var(--accent-subtle);font-weight:600;color:var(--accent)}
+  .glist .snode .no{width:16px;font-size:11px;color:var(--fg-subtle);text-align:right;flex:none;font-variant-numeric:tabular-nums}
+  .glist .snode .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .glist .snode .n{font-size:12px;color:var(--fg-muted);font-variant-numeric:tabular-nums}
+  .glist .snode.add{color:var(--accent);font-size:12.5px}
+  .glist .none{padding:24px 8px;text-align:center;color:var(--fg-muted);font-size:13px}
+  .newg{margin-top:auto;justify-content:center;color:var(--accent);background:transparent;border-style:dashed;flex:none}
+  .gpane{border:1px solid var(--border);border-radius:var(--r);background:var(--canvas);overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+  .phead{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--canvas-subtle)}
+  .phead .min0{flex:1}
+  .phead .acts{display:flex;align-items:center;gap:8px;flex:none}
+  .phead .ttl{display:flex;align-items:center;gap:10px;min-width:0;white-space:nowrap;overflow:hidden}
+  .phead .big{font-size:20px;font-weight:600}
+  .phead .sub{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:13px;color:var(--fg-muted);white-space:nowrap;overflow:hidden}
+  .phead .sub a{overflow:hidden;text-overflow:ellipsis;max-width:420px}
+  .phead .sub a{font-size:13px}
+  .phead .crumb{font-size:12px;color:var(--fg-muted);margin-bottom:2px}
+  .backlink{background:transparent;border-color:transparent;box-shadow:none;color:var(--fg-muted);padding:5px 8px 5px 4px}
+  .backlink:hover{color:var(--accent);background:transparent;border-color:transparent}
+  .namein{font-size:18px;font-weight:600;padding:3px 10px;min-width:220px}
+  .dirty{display:none;align-items:center;gap:6px;font-size:12px;color:var(--attention);background:var(--attention-subtle);border:1px solid var(--attention);border-radius:999px;padding:2px 10px;line-height:18px}
+  .dirty.on{display:inline-flex} .dirty .d{width:6px;height:6px;border-radius:50%;background:var(--attention)}
+  .pbody{padding:20px}
+  .empty-pane{flex:1;display:grid;place-items:center;color:var(--fg-muted);text-align:center;padding:40px}
 
-  .gpane{min-height:0;overflow-y:auto;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r)}
-  .phead{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-    padding:12px 16px;border-bottom:1px solid var(--border);background:var(--canvas-subtle)}
-  .phead .crumb{font-size:12px;color:var(--fg-muted)}
-  .phead .crumb b{color:var(--fg);font-weight:600}
-  .phead .ttl{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
-  .phead .sub{font-size:12px;color:var(--fg-muted)}
-  .pbody{padding:16px}
-  .backlink{background:transparent;border-color:transparent;box-shadow:none;color:var(--fg-muted);padding:4px 8px;font-size:13px}
-  .backlink:hover{color:var(--fg);background:var(--btn-hover)}
-
-  /* Primer UnderlineNav */
-  .ftabs{display:flex;flex-wrap:wrap;gap:0;margin:0 0 16px;border-bottom:1px solid var(--border)}
-  .ftabs button{position:relative;background:transparent;border:0;box-shadow:none;border-radius:0;color:var(--fg);padding:8px 12px 10px;font-weight:400;font-size:14px;line-height:20px}
-  .ftabs button:hover{background:transparent;color:var(--fg)}
-  .ftabs button::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:transparent}
-  .ftabs button:hover::after{background:var(--border)}
-  .ftabs button.active{font-weight:600}
-  .ftabs button.active::after{background:var(--current)}
-  .sec{display:none} .sec.active{display:block}
-  .fld{margin-bottom:16px} .fld>label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
-  .fld input[type=text],.fld input[type=number],.fld input[type=password],.fld select,.fld textarea{width:100%}
-  .fld textarea{min-height:80px}
-  .hint{font-size:12px;color:var(--fg-muted);margin-top:4px}
-  .flt{display:grid;grid-template-columns:1fr 170px;gap:12px;align-items:start;margin-bottom:16px}
-  .flt textarea{min-height:58px}
-  .chk{display:flex;align-items:center;gap:8px;margin:10px 0}
-  .chk input{width:16px;height:16px;accent-color:var(--accent);margin:0}
-  .oprow{display:grid;grid-template-columns:1fr 170px 40px;gap:8px;margin-bottom:8px}
-  .oprow button{padding:5px 0;justify-content:center}
-  .days{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
-  .days label{display:flex;gap:6px;align-items:center}
-  .days input{accent-color:var(--accent);margin:0}
-  .note{font-size:12px;color:var(--fg-muted);border-left:3px solid var(--border);padding-left:12px;margin-top:20px}
-  .g2c{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .streamcard{display:block}
+  /* waterfall of streams — one rule per row, tried top to bottom */
+  .wf{border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+  .wfh,.wfr{display:grid;grid-template-columns:44px 36px 110px minmax(150px,1fr) minmax(180px,1.3fr) 150px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border-muted)}
+  .wfh{font-size:12px;font-weight:600;color:var(--fg-muted);background:var(--canvas-subtle);border-bottom-color:var(--border)}
+  .wfr{min-height:56px;cursor:pointer;background:var(--canvas)}
+  .wfr:hover{background:var(--canvas-subtle)}
+  .wfr.off>*:not(.c-on):not(.c-no){opacity:.5}
+  .wfr.fb{cursor:default;background:var(--canvas-subtle);color:var(--fg-muted)} .wfr.fb:hover{background:var(--canvas-subtle)}
+  .wfr.drag{opacity:.4} .wfr.over{box-shadow:inset 0 2px 0 var(--accent)}
+  .c-no{display:flex;align-items:center;gap:4px;color:var(--fg-subtle);cursor:grab}
+  .c-no .no{width:20px;height:20px;border-radius:50%;background:var(--canvas-subtle);border:1px solid var(--border);display:inline-grid;place-items:center;font-size:11px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+  .c-nm{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .c-when{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+  .c-then{display:flex;align-items:center;gap:8px;min-width:0} .c-then svg{color:var(--fg-muted)} .c-then .mono{color:var(--fg-muted)}
+  .c-then .o{display:flex;flex-direction:column;gap:4px;min-width:0} .c-then .o>span{display:flex;align-items:center;gap:8px;min-width:0}
+  .c-st{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;text-align:right}
+  .c-st .st{display:flex;flex-direction:column;line-height:1.2;font-variant-numeric:tabular-nums;font-size:13px}
+  .c-st .st small{font-size:11px;color:var(--fg-muted)}
+  .c-st .st.att{color:var(--attention)} .c-st .st.ok{color:var(--success)} .c-st.dim .st{color:var(--fg-muted)}
+  .wfnote,.wfempty{padding:10px 20px;font-size:12px;color:var(--fg-muted);display:flex;align-items:center;gap:8px;background:var(--canvas)}
+  .wfempty{font-size:13px;padding:18px 20px;border-bottom:1px solid var(--border-muted)}
+  .gsettings{margin-bottom:20px;padding:16px 20px}
+  .gsettings h3,.streamcard h3{font-size:14px;font-weight:600;margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--border-muted)}
+  .gsettings h3:first-child{margin-top:0;padding-top:0;border-top:none}
   .lnk{margin:4px 0;font-size:13px;word-break:break-all}
-  .empty-pane{display:grid;place-items:center;height:100%;color:var(--fg-muted);text-align:center;padding:40px}
+  .dz{border-color:var(--danger)} .dz .row{margin-top:8px}
 
-  @media(max-width:980px){
-    .layout{grid-template-columns:1fr} .sidebar{display:none}
-    main.locked{height:auto;overflow:visible}
-    .ged{grid-template-columns:1fr;height:auto}
-    .glist,.gpane{max-height:none;overflow:visible}
-    .cards{grid-template-columns:1fr} .g2c,.grid2,.flt{grid-template-columns:1fr}
+  /* stream editor: WHEN | THEN + Bots + Advanced */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:16px;min-width:0}
+  .card .ch{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--canvas-subtle);font-weight:600;font-size:13px;border-radius:var(--r) var(--r) 0 0}
+  .card .ch .hint{margin:0;font-weight:400}
+  .card .cb{padding:16px}
+  .crow{display:grid;grid-template-columns:1fr 24px;gap:4px 10px;align-items:start;padding:10px 16px;border-bottom:1px solid var(--border-muted)}
+  .crow .cl{grid-column:1;font-weight:600;font-size:12px;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.02em}
+  .crow .cv{grid-column:1}
+  .crow .cx{grid-column:2;grid-row:1/3;align-self:start}
+  .crow .cv{display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-width:0}
+  .crow .cv input[type=text],.crow .cv input[type=number]{min-width:120px} .crow .cv input.grow{flex:1;min-width:160px}
+  .crow .cv select{min-width:110px}
+  .crow .cv .hint{width:100%;margin-top:0}
+  .addc{position:relative;padding:12px 16px}
+  .addmenu{position:absolute;z-index:6;top:calc(100% - 4px);left:16px;min-width:300px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-pop);padding:8px;columns:2;column-gap:8px}
+  .addmenu .grp{break-inside:avoid;margin-bottom:6px}
+  .addmenu .gt{font-size:11px;font-weight:600;color:var(--fg-muted);padding:4px 8px;text-transform:uppercase;letter-spacing:.02em}
+  .addmenu button{display:flex;width:100%;text-align:left;background:transparent;border-color:transparent;box-shadow:none;padding:4px 8px;font-weight:400;font-size:13px}
+  .addmenu button:hover{background:var(--accent-subtle);color:var(--accent)}
+  .addmenu button:disabled{opacity:.4}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .chipck{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border:1px solid var(--border);border-radius:999px;background:var(--canvas-subtle);font-size:12px;cursor:pointer;user-select:none}
+  .chipck input{position:absolute;opacity:0;width:0;height:0}
+  .chipck:has(input:checked){background:var(--accent-subtle);border-color:var(--accent);color:var(--accent);font-weight:500}
+  .chipck:has(input:focus-visible){box-shadow:0 0 0 3px var(--focus)}
+  .chipck.dev:has(input:checked){background:var(--success-subtle);border-color:var(--success);color:var(--success)}
+  details.adv summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:10px 16px;font-weight:600;font-size:13px;background:var(--canvas-subtle);border-radius:var(--r)}
+  details.adv summary::-webkit-details-marker{display:none}
+  details.adv summary::before{content:"";width:6px;height:6px;border-right:1.5px solid var(--fg-muted);border-bottom:1.5px solid var(--fg-muted);transform:rotate(-45deg);margin:0 4px 0 2px;transition:transform .12s}
+  details.adv[open] summary::before{transform:rotate(45deg)}
+  details.adv[open] summary{border-bottom:1px solid var(--border);border-radius:var(--r) var(--r) 0 0}
+  details.adv .cb{padding:16px}
+  .oprow{display:grid;grid-template-columns:1fr 140px 32px;gap:8px;margin-bottom:8px;width:100%}
+  .oprow button{padding:5px 0;justify-content:center}
+  .days{display:flex;gap:4px;flex-wrap:wrap}
+  .days label{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border:1px solid var(--border);border-radius:999px;font-size:12px;cursor:pointer;background:var(--canvas-subtle)}
+  .days label:has(input:checked){background:var(--accent-subtle);border-color:var(--accent);color:var(--accent)}
+  .days input{position:absolute;opacity:0;width:0;height:0}
+
+  @media(max-width:1180px){
+    .kpis{grid-template-columns:repeat(3,1fr)} .bdrow{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .cols{grid-template-columns:1fr}
+    .wfh,.wfr{grid-template-columns:44px 36px 100px minmax(130px,1fr) minmax(160px,1.2fr) 140px}
+  }
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr} .sidebar{position:static;height:auto}
+    .ged{grid-template-columns:1fr} .g2c,.g3c{grid-template-columns:1fr}
+    .wfh{display:none} .wfr{grid-template-columns:44px 36px 1fr;grid-auto-rows:auto}
+    .c-when,.c-then,.c-st{grid-column:1/-1}
   }
 </style>
 </head>
-<body><div id="app"></div>
+<body>
+<div id="app"></div>
 <script>
 const $=(h)=>{const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild};
 const api=(p,o={})=>fetch(p,{credentials:'same-origin',...o});
@@ -239,9 +365,26 @@ const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;
 const flag=(cc)=>{cc=String(cc||'').trim().toUpperCase();if(!/^[A-Z]{2}$/.test(cc))return '';return String.fromCodePoint(...[...cc].map(c=>0x1F1E6+c.charCodeAt(0)-65))};
 const q=(s)=>document.querySelector(s);
 const qa=(s)=>Array.from(document.querySelectorAll(s));
-// Sep 8, 12:45 AM — the date once, compact, instead of a full locale string per row.
 const when=(iso)=>new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+const fmt=(n)=>(+n||0).toLocaleString('en-US');
+const money=(n)=>'$'+(+n||0).toFixed(2);
+const pct=(a,b)=>b?((a||0)/b*100).toFixed(1)+'%':'—';
+const firstLine=(s)=>String(s||'').split(/\|\|\||\n/)[0].trim();
 let CSRF='', TAB='dashboard', HOURS=24, ENGINE='', USER='';
+const PERIODS={24:'24 hours',168:'7 days',720:'30 days'};
+const periodLabel=()=>PERIODS[HOURS]||HOURS+' h';
+
+/* ---------- theme: light / dark, remembered per browser ---------- */
+const THEME_KEY='kuztds-theme';
+function applyTheme(t){const h=document.documentElement;t?h.setAttribute('data-theme',t):h.removeAttribute('data-theme')}
+function isDark(){const t=document.documentElement.getAttribute('data-theme');return t?t==='dark':!!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)}
+function toggleTheme(){
+  const t=isDark()?'light':'dark';
+  try{localStorage.setItem(THEME_KEY,t)}catch(e){}
+  applyTheme(t); syncTheme();
+  if(TAB==='dashboard')drawChart(q('#chart'),CH.pts);
+}
+function syncTheme(){qa('#theme').forEach(b=>{b.innerHTML=icon(isDark()?'sun':'moon');b.title=isDark()?'Switch to light theme':'Switch to dark theme'})}
 
 // SVG icons (by key)
 const IC={
@@ -253,10 +396,18 @@ const IC={
   keys:'<path d="M21 2l-2 2m-7.6 7.6a5 5 0 1 0-7 7 5 5 0 0 0 7-7zm0 0L15 8m0 0l3 3 3-3-3-3"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
-  visits:'<path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/>',
-  uniq:'<path d="M20 6L9 17l-5-5"/>',
-  botico:'<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/>',
   back:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="M18 6L6 18M6 6l12 12"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  grip:'<circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="6" r="1.2" fill="currentColor"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/><circle cx="9" cy="18" r="1.2" fill="currentColor"/><circle cx="15" cy="18" r="1.2" fill="currentColor"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  up:'<path d="M12 19V5M5 12l7-7 7 7"/>',
+  down:'<path d="M12 5v14M19 12l-7 7-7-7"/>',
+  check:'<path d="M20 6L9 17l-5-5"/>',
 };
 const icon=(k)=>`<svg class="ic" viewBox="0 0 24 24">${IC[k]||''}</svg>`;
 const TITLES={dashboard:'Dashboard',logs:'Logs',postbacks:'Conversions',groups:'Groups',lists:'Lists',keys:'Keywords',settings:'Settings'};
@@ -270,15 +421,16 @@ async function boot(){
 }
 function loginView(msg=''){
   const el=$(`<div class="login-wrap"><div class="login">
-    <div class="brand"><div class="logo">K</div><div><b>KuzTDS</b><span class="sub">admin panel</span></div></div>
+    <div class="brand"><div class="logo">K</div><div><b>KuzTDS</b><span class="sub">admin panel</span></div><div class="spacer"></div><button class="iconbtn" id="theme"></button></div>
     <div class="fld"><label for="l">Username</label><input id="l" autocomplete="username" autofocus></div>
     <div class="fld"><label for="p">Password</label><input id="p" type="password" autocomplete="current-password"></div>
     <button class="primary" id="go">Sign in</button>
     <div class="err" style="text-align:center;min-height:18px;margin-top:10px">${esc(msg)}</div></div></div>`);
   el.querySelector('#go').onclick=doLogin;
+  el.querySelector('#theme').onclick=toggleTheme;
   el.querySelector('#l').onkeydown=e=>{if(e.key==='Enter')doLogin()};
   el.querySelector('#p').onkeydown=e=>{if(e.key==='Enter')doLogin()};
-  render(el);
+  render(el); syncTheme();
   setTimeout(()=>{const l=q('#l');if(l)l.focus()},0);
 }
 async function doLogin(){
@@ -303,30 +455,33 @@ function app(user){
       ${navItem('dashboard')}${navItem('logs')}${navItem('postbacks')}${navItem('keys')}
       <div class="nav-cap">Configuration</div>
       ${navItem('groups')}${navItem('lists')}
-      <div class="sb-foot">engine: <span class="ok">●</span> ${esc((ENGINE||'local').replace(/^https?:\/\//,''))}</div>
+      <div class="sb-foot">engine: <span class="dot on"></span> ${esc((ENGINE||'local').replace(/^https?:\/\//,''))}</div>
     </aside>
     <div class="content">
       <header class="topbar">
         <h1 id="ptitle">Dashboard</h1>
         <div class="spacer"></div>
         <select id="period"><option value="24">24 hours</option><option value="168">7 days</option><option value="720">30 days</option></select>
+        <button class="iconbtn" id="theme"></button>
         <button class="iconbtn" id="gear" title="Settings">${icon('settings')}</button>
         <div class="userchip"><div class="av">${esc((user||'a')[0])}</div><span class="nm">${esc(user)}</span>
-          <button class="iconbtn" id="out" title="Log out" style="width:32px;height:32px">${icon('logout')}</button></div>
+          <button class="iconbtn" id="out" title="Log out">${icon('logout')}</button></div>
       </header>
       <main id="view"></main>
     </div></div>`);
   root.querySelector('#out').onclick=logout;
+  root.querySelector('#theme').onclick=toggleTheme;
   root.querySelector('#gear').onclick=()=>openTab('settings');
   root.querySelector('#period').value=HOURS;
-  root.querySelector('#period').onchange=e=>{HOURS=+e.target.value;openTab(TAB)};
+  root.querySelector('#period').onchange=e=>{HOURS=+e.target.value;openTab(TAB,true)};
   root.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>openTab(b.dataset.t));
-  render(root);
+  render(root); syncTheme();
   openTab(TAB);
 }
-function openTab(t){
+function openTab(t,periodOnly){
   // Leaving the editor with pending edits would drop them silently.
-  if(TAB==='groups'&&t!=='groups'){
+  if(TAB==='groups'&&(t!=='groups'||periodOnly)){
+    if(periodOnly&&DIRTY){refreshPerf();return} // keep the edits, refresh only the numbers
     if(!confirmLeave())return;
     clearDirty(); // the edits are dropped: groups() refetches on the way back
   }
@@ -341,14 +496,18 @@ const view=()=>q('#view');
 
 /* ---------- SETTINGS (change password) ---------- */
 function settings(){
-  view().innerHTML=`<h2>Change admin password</h2>
+  view().innerHTML=`<h2 style="margin-top:0">Change admin password</h2>
     <div class="panel" style="max-width:440px">
       <div class="fld"><label>Current password</label><input type="password" id="pw-old"></div>
       <div class="fld"><label>New password (min. 6)</label><input type="password" id="pw-new"></div>
       <div class="fld"><label>Repeat new password</label><input type="password" id="pw-new2"></div>
       <div class="row"><button class="primary" id="pw-save">Change password</button><span id="pw-msg" class="muted"></span></div>
       <p class="muted" style="margin-bottom:0">The argon2id hash is saved to <code>KUZTDS_ADMIN_PASSWORD_FILE</code>. If the variable is not set, the change applies only until restart.</p>
-    </div>`;
+    </div>
+    <h2>Appearance</h2>
+    <div class="panel" style="max-width:440px"><div class="row"><span>Theme</span><div class="spacer"></div><button id="theme2"></button></div></div>`;
+  const tb=q('#theme2'); const lbl=()=>{tb.innerHTML=icon(isDark()?'sun':'moon')+(isDark()?'Switch to light':'Switch to dark')};
+  lbl(); tb.onclick=()=>{toggleTheme();lbl()};
   q('#pw-save').onclick=async()=>{
     const o=q('#pw-old').value,n=q('#pw-new').value,n2=q('#pw-new2').value;
     const msg=q('#pw-msg');
@@ -361,64 +520,162 @@ function settings(){
 }
 
 /* ---------- DASHBOARD ---------- */
+const BDT={country:'Countries',device:'Devices',os:'OS',browser:'Browsers',domain:'Sources'};
+let PERF=[], PSORT={k:'hits',d:-1}, CH={pts:[],x:[]};
 async function dashboard(){
   view().innerHTML=stateHTML('loading…');
-  const [sum,ts]=await Promise.all([
+  const [sum,ts,perf,gs]=await Promise.all([
     api('/api/stats/summary?'+rangeQS()).then(r=>r.json()).catch(()=>null),
     api('/api/stats/timeseries?'+rangeQS()+'&step='+(HOURS>48?86400:3600)).then(r=>r.json()).catch(()=>[]),
+    api('/api/stats/performance?'+rangeQS()).then(r=>r.json()).catch(()=>[]),
+    api('/api/groups').then(r=>r.json()).catch(()=>[]),
   ]);
+  if(TAB!=='dashboard')return;
+  PERF=Array.isArray(perf)?perf:[]; const pts=Array.isArray(ts)?ts:[]; const groups=Array.isArray(gs)?gs:[];
+  const total=sum?sum.total:0, uniq=sum?sum.unique:0, bots=sum?sum.bots:0;
+  const conv=PERF.reduce((a,r)=>a+(r.conv||0),0), profit=PERF.reduce((a,r)=>a+(r.profit||0),0);
+  const kpi=(v,l,s,c)=>`<div class="card kpi ${c||''}"><div class="v">${v}</div><div class="l"><span>${l}</span><span>${s||''}</span></div></div>`;
   view().innerHTML=`
-    <div class="cards">
-      ${cardHTML(sum?sum.total:0,'Total visits','','visits')}
-      ${cardHTML(sum?sum.unique:0,'Unique','uniq','uniq')}
-      ${cardHTML(sum?sum.bots:0,'Bots','bot','botico')}
+    <div class="kpis">
+      ${kpi(fmt(total),'Visits',periodLabel())}
+      ${kpi(fmt(uniq),'Unique',pct(uniq,total))}
+      ${kpi(fmt(bots),'Bots',pct(bots,total),'bot')}
+      ${kpi(fmt(conv),'Conversions','postbacks')}
+      ${kpi(money(profit),'Profit','','ok')}
+      ${kpi(pct(conv,total),'CR','conv / visits')}
     </div>
-    <h2>Trend (all groups)</h2>
-    <div class="panel"><canvas id="chart"></canvas>
-      <div style="margin-top:10px;font-size:12px;color:var(--fg-muted)">
-        <span style="color:var(--accent)">●</span> total &nbsp; <span style="color:var(--success)">●</span> unique &nbsp; <span style="color:var(--attention)">●</span> bots</div>
+    <div class="panel chartbox">
+      <div class="ph"><b>Visits over time</b><span class="hint">${HOURS>48?'daily':'hourly'} · ${periodLabel()}</span><div class="spacer"></div>
+        <span class="lg"><i></i>total</span><span class="lg"><i class="sw-uniq"></i>unique</span><span class="lg"><i class="sw-bots"></i>bots</span></div>
+      <div class="cwrap"><canvas id="chart"></canvas><div class="ctip" id="ctip" hidden></div></div>
     </div>
-    <div class="grid2">
-      <div><h2>Countries</h2><div id="bd-country" class="panel bars"></div></div>
-      <div><h2>Devices</h2><div id="bd-device" class="panel bars"></div></div>
-      <div><h2>OS</h2><div id="bd-os" class="panel bars"></div></div>
-      <div><h2>Browsers</h2><div id="bd-browser" class="panel bars"></div></div>
-      <div><h2>Brands</h2><div id="bd-brand" class="panel bars"></div></div>
-      <div><h2>Groups</h2><div id="bd-group" class="panel bars"></div></div>
-      <div><h2>Sources (domains)</h2><div id="bd-domain" class="panel bars"></div></div>
-    </div>`;
-  drawChart(q('#chart'),ts||[]);
-  ['country','device','os','browser','brand','group','domain'].forEach(loadBreakdown);
+    <div class="panel perf">
+      <div class="ph"><b>Performance by group and stream</b><span class="hint">what actually works — click a column to sort</span><div class="spacer"></div><button class="sm" id="perfcsv">Export CSV</button></div>
+      <div id="perfwrap"></div>
+    </div>
+    <h2>Who visits</h2>
+    <div class="bdrow">${Object.keys(BDT).map(d=>`<div class="card bd"><div class="bt">${BDT[d]}</div><div id="bd-${d}" class="bars"><span class="muted">…</span></div></div>`).join('')}</div>`;
+  drawChart(q('#chart'),pts); bindChartHover(q('#chart'));
+  renderPerf(groups);
+  q('#perfcsv').onclick=()=>exportPerf(groups);
+  Object.keys(BDT).forEach(loadBreakdown);
 }
-function cardHTML(v,l,c,ic){return `<div class="card ${c}"><div class="ico">${icon(ic)}</div><div class="v">${(v||0).toLocaleString('en-US')}</div><div class="l">${l}</div></div>`}
 async function loadBreakdown(dim){
   const box=q('#bd-'+dim); if(!box)return;
-  const kv=await api(`/api/stats/breakdown?dim=${dim}&limit=8&`+rangeQS()).then(r=>r.json()).catch(()=>[]);
+  const kv=await api(`/api/stats/breakdown?dim=${dim}&limit=6&`+rangeQS()).then(r=>r.json()).catch(()=>[]);
+  if(!box.isConnected)return;
   if(!kv||!kv.length){box.innerHTML='<span class="muted">no data</span>';return}
   const max=Math.max(...kv.map(x=>x.count));
-  box.innerHTML=kv.map(x=>`<div><span class="lbl">${esc(x.key||'—')}</span><span class="bar" style="width:${Math.round(x.count/max*180)}px"></span><span class="n">${x.count}</span></div>`).join('');
+  box.innerHTML=kv.map(x=>`<div><span class="lbl">${dim==='country'?`<span class="flag">${flag(x.key)}</span>`:''}${esc(x.key||'—')}</span><span class="track"><span class="bar" style="width:${Math.max(2,Math.round(x.count/max*100))}%"></span></span><span class="n">${fmt(x.count)}</span></div>`).join('');
 }
-function drawChart(cv,pts){
-  if(!cv)return;
-  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=260;
-  cv.width=W*dpr; cv.height=H*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr);
-  g.clearRect(0,0,W,H);
-  if(!pts.length){g.fillStyle='#656d76';g.font='13px sans-serif';g.fillText('no data for the period',12,24);return}
-  const pad=34, w=W-pad*2, h=H-pad*2;
+
+// Performance rows folded into config order: group → its streams, the
+// fallback ("-": no stream matched) last, then groups that exist only in the
+// data (deleted or renamed since).
+function perfTree(groups){
+  const nodes=new Map(), order=[];
+  groups.forEach(g=>{const n={id:g.id,name:g.name||'',known:true,order:(g.streams||[]).map(s=>s.name),streams:new Map()};nodes.set('id:'+g.id,n);order.push(n)});
+  const byName=(r)=>{for(const n of order){if(n.known&&n.name===r.group)return n}return null};
+  PERF.forEach(r=>{
+    let n=r.group_id?nodes.get('id:'+r.group_id):byName(r);
+    if(!n){const k=r.group_id?'id:'+r.group_id:'nm:'+r.group;n=nodes.get(k);
+      if(!n){n={id:r.group_id||r.group||'(unknown)',name:r.group_id?r.group:'',known:false,order:[],streams:new Map()};nodes.set(k,n);order.push(n)}}
+    const c=n.streams.get(r.stream)||{stream:r.stream,hits:0,unique:0,bots:0,conv:0,profit:0};
+    c.hits+=r.hits||0;c.unique+=r.unique||0;c.bots+=r.bots||0;c.conv+=r.conv||0;c.profit+=r.profit||0;
+    n.streams.set(r.stream,c);
+  });
+  return order.map(n=>{
+    const rows=[...n.streams.values()];
+    const tot=rows.reduce((a,r)=>({hits:a.hits+r.hits,unique:a.unique+r.unique,bots:a.bots+r.bots,conv:a.conv+r.conv,profit:a.profit+r.profit}),{hits:0,unique:0,bots:0,conv:0,profit:0});
+    return {...n,rows,tot};
+  }).filter(n=>n.rows.length);
+}
+function perfSorted(groups){
+  const tree=perfTree(groups), {k,d}=PSORT;
+  const val=r=>k==='cr'?(r.hits?r.conv/r.hits:0):(r[k]||0);
+  const cmp=(a,b)=>(val(a)-val(b))*d;
+  if(k!=='name')tree.sort((a,b)=>cmp(a.tot,b.tot));
+  tree.forEach(n=>{
+    if(k==='name'){const idx=s=>s.stream==='-'?1e9:(n.order.indexOf(s.stream)+1||1e8);n.rows.sort((a,b)=>idx(a)-idx(b))}
+    else n.rows.sort(cmp);
+  });
+  return tree;
+}
+function renderPerf(groups){
+  const wrap=q('#perfwrap'); if(!wrap)return;
+  const tree=perfSorted(groups);
+  if(!tree.length){wrap.innerHTML=stateHTML('no traffic for the period');return}
+  const th=(key,label,cls)=>`<th class="${cls||''} ${PSORT.k===key?'sorted':''}" data-sort="${key}">${label}${PSORT.k===key&&key!=='name'?(PSORT.d<0?' ▾':' ▴'):''}</th>`;
+  const cells=r=>`<td class="num">${fmt(r.hits)}</td><td class="num">${fmt(r.unique)}</td><td class="num ${r.bots?'att':''}">${fmt(r.bots)}</td><td class="num ${r.conv?'ok':''}">${fmt(r.conv)}</td><td class="num">${r.profit?money(r.profit):'—'}</td><td class="num">${pct(r.conv,r.hits)}</td>`;
+  const body=tree.map(n=>`<tr class="grp"><td>${esc(n.id)}${n.name?` <span class="muted">${esc(n.name)}</span>`:''}${n.known?'':' <span class="pill off">not in config</span>'}</td>${cells(n.tot)}</tr>`+
+    n.rows.map(r=>`<tr class="str"><td>${r.stream==='-'?'<i class="muted">no match → group default</i>':esc(r.stream)}</td>${cells(r)}</tr>`).join('')).join('');
+  wrap.innerHTML=`<div class="tw"><table class="perft"><thead><tr>${th('name','Group / stream')}${th('hits','Hits','num')}${th('unique','Unique','num')}${th('bots','Bots','num')}${th('conv','Conv','num')}${th('profit','Profit','num')}${th('cr','CR','num')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  wrap.querySelectorAll('th[data-sort]').forEach(h=>h.onclick=()=>{
+    const key=h.dataset.sort;
+    if(PSORT.k===key&&key!=='name')PSORT.d=-PSORT.d; else PSORT={k:key,d:-1};
+    renderPerf(groups);
+  });
+}
+function exportPerf(groups){
+  const csv=s=>/[",\n]/.test(s)?'"'+String(s).replace(/"/g,'""')+'"':s;
+  const lines=[['group','stream','hits','unique','bots','conv','profit','cr'].join(',')];
+  perfSorted(groups).forEach(n=>{
+    lines.push([csv(n.id),'',n.tot.hits,n.tot.unique,n.tot.bots,n.tot.conv,n.tot.profit.toFixed(2),pct(n.tot.conv,n.tot.hits)].join(','));
+    n.rows.forEach(r=>lines.push([csv(n.id),csv(r.stream),r.hits,r.unique,r.bots,r.conv,r.profit.toFixed(2),pct(r.conv,r.hits)].join(',')));
+  });
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
+  a.download='kuztds-performance-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+// Two hues only: total (area + line) and unique (dashed, same hue) share the
+// accent, bots take the orange. The pair passes the colour-vision check in
+// both themes; the app's amber/green status pair does not, so it stays off
+// the chart.
+function chartColors(){
+  const cs=getComputedStyle(document.documentElement), v=k=>cs.getPropertyValue(k).trim();
+  return {total:v('--chart-total')||'#0969da',bots:v('--chart-bots')||'#e16f24',grid:v('--border-muted')||'#d8dee4',text:v('--fg-muted')||'#656d76',ring:v('--canvas')||'#fff'};
+}
+function drawChart(cv,pts,hover){
+  if(!cv)return; pts=pts||[]; const c=chartColors();
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth||600, H=260;
+  cv.width=W*dpr; cv.height=H*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,W,H);
+  if(!pts.length){CH={pts:[],x:[]};g.fillStyle=c.text;g.font='13px system-ui,sans-serif';g.fillText('no data for the period',12,24);return}
+  const L=48,R=12,T=14,B=26,w=W-L-R,h=H-T-B;
   const max=Math.max(1,...pts.map(p=>p.total));
-  const x=i=>pad+(pts.length<2?w/2:i/(pts.length-1)*w);
-  const y=v=>pad+h-(v/max*h);
-  g.strokeStyle='#d8dee4';g.lineWidth=1;
-  for(let k=0;k<=3;k++){const yy=pad+h-k/3*h;g.beginPath();g.moveTo(pad,yy);g.lineTo(pad+w,yy);g.stroke();
-    g.fillStyle='#656d76';g.font='10px sans-serif';g.fillText(Math.round(max*k/3).toLocaleString('en-US'),4,yy+3)}
-  const line=(key,color,fill)=>{
-    if(fill){const grd=g.createLinearGradient(0,pad,0,pad+h);grd.addColorStop(0,color+'33');grd.addColorStop(1,color+'00');
-      g.fillStyle=grd;g.beginPath();g.moveTo(x(0),y(pts[0][key]));pts.forEach((p,i)=>g.lineTo(x(i),y(p[key])));
-      g.lineTo(x(pts.length-1),pad+h);g.lineTo(x(0),pad+h);g.closePath();g.fill()}
-    g.strokeStyle=color;g.lineWidth=2.2;g.beginPath();pts.forEach((p,i)=>{const X=x(i),Y=y(p[key]);i?g.lineTo(X,Y):g.moveTo(X,Y)});g.stroke();
-    g.fillStyle=color;pts.forEach((p,i)=>{g.beginPath();g.arc(x(i),y(p[key]),2.6,0,7);g.fill()})};
-  line('total','#0969da',true);line('unique','#1a7f37',false);line('bots','#9a6700',false);
+  const x=i=>L+(pts.length<2?w/2:i/(pts.length-1)*w), y=v=>T+h-(v||0)/max*h;
+  CH={pts,x:pts.map((_,i)=>x(i))};
+  g.strokeStyle=c.grid;g.lineWidth=1;g.fillStyle=c.text;g.font='11px system-ui,sans-serif';g.textAlign='right';
+  for(let k=0;k<=4;k++){const yy=T+h-k/4*h;g.beginPath();g.moveTo(L,yy);g.lineTo(L+w,yy);g.stroke();g.fillText(fmt(Math.round(max*k/4)),L-8,yy+4)}
+  g.textAlign='center';const step=Math.max(1,Math.ceil(pts.length/8));
+  pts.forEach((p,i)=>{if(i%step===0||i===pts.length-1){const d=new Date(p.ts);g.textAlign=i===0?'left':(i===pts.length-1?'right':'center');
+    g.fillText(HOURS>48?d.toLocaleDateString('en-US',{month:'short',day:'numeric'}):d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),x(i),H-8)}});
+  const path=(key)=>{g.beginPath();pts.forEach((p,i)=>{i?g.lineTo(x(i),y(p[key])):g.moveTo(x(i),y(p[key]))})};
+  const grd=g.createLinearGradient(0,T,0,T+h);grd.addColorStop(0,c.total+'40');grd.addColorStop(1,c.total+'05');
+  path('total');g.lineTo(x(pts.length-1),T+h);g.lineTo(x(0),T+h);g.closePath();g.fillStyle=grd;g.fill();
+  g.lineWidth=2;g.lineJoin='round';g.strokeStyle=c.total;path('total');g.stroke();
+  g.setLineDash([5,4]);path('unique');g.stroke();g.setLineDash([]);
+  g.strokeStyle=c.bots;path('bots');g.stroke();
+  if(hover!=null&&pts[hover]){
+    const X=x(hover);g.strokeStyle=c.grid;g.beginPath();g.moveTo(X,T);g.lineTo(X,T+h);g.stroke();
+    [['total',c.total],['unique',c.total],['bots',c.bots]].forEach(([k,col])=>{g.beginPath();g.arc(X,y(pts[hover][k]),4,0,7);g.fillStyle=col;g.fill();g.strokeStyle=c.ring;g.lineWidth=2;g.stroke()});
+  }
 }
+function bindChartHover(cv){
+  const tip=q('#ctip'); if(!cv||!tip)return;
+  cv.onmousemove=e=>{
+    const pts=CH.pts; if(!pts.length)return;
+    const r=cv.getBoundingClientRect(), mx=e.clientX-r.left;
+    let i=0,best=1e9; CH.x.forEach((X,j)=>{const d=Math.abs(X-mx);if(d<best){best=d;i=j}});
+    drawChart(cv,pts,i); const p=pts[i];
+    tip.hidden=false;
+    tip.innerHTML=`<div class="t">${when(p.ts)}</div><div><i></i>total<b>${fmt(p.total)}</b></div><div><i class="sw-uniq"></i>unique<b>${fmt(p.unique)}</b></div><div><i class="sw-bots"></i>bots<b>${fmt(p.bots)}</b></div>`;
+    tip.style.left=Math.max(0,Math.min(CH.x[i]+12,r.width-tip.offsetWidth-4))+'px';
+  };
+  cv.onmouseleave=()=>{tip.hidden=true;drawChart(cv,CH.pts)};
+}
+let resizeT; window.addEventListener('resize',()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(TAB==='dashboard')drawChart(q('#chart'),CH.pts)},120)});
 
 /* ---------- LOGS ---------- */
 let logOffset=0, LOGF={}, LOGVALS={};
@@ -490,6 +747,7 @@ async function loadLogs(){
   const wrap=q('#logwrap'); if(!wrap)return;
   wrap.innerHTML=stateHTML('loading…');
   const r=await api('/api/logs?'+qs+'&'+rangeQS()).then(r=>r.json()).catch(()=>null);
+  if(!q('#logwrap'))return;
   if(!r||!r.rows){wrap.innerHTML=stateHTML('failed to load logs','err');return}
   if(!r.rows.length){wrap.innerHTML=stateHTML('nothing found for these filters');q('#pageinfo').textContent='0 of '+(r.total||0);return}
   const rows=r.rows.map(x=>`<tr>
@@ -498,7 +756,7 @@ async function loadLogs(){
     <td><span class="flag">${flag(x.country)}</span>${esc(x.country)}</td><td>${esc(x.device)}</td>
     <td>${esc(x.os)} ${esc(x.browser)}</td><td>${esc(x.brand)}</td>
     <td>${x.bot&&x.bot!=='-'?`<span class="pill bot">${esc(x.bot)}</span>`:(x.uniq?'<span class="pill on">uniq</span>':'<span class="pill off">—</span>')}</td>
-    <td>${esc(x.ip)}</td><td class="ell">${esc(x.keyword)}</td><td class="ell">${esc(x.out)}</td></tr>`).join('');
+    <td class="mono">${esc(x.ip)}</td><td class="ell">${esc(x.keyword)}</td><td class="ell">${esc(x.out)}</td></tr>`).join('');
   wrap.innerHTML=`<div class="tw"><table><thead><tr><th>Time</th><th>Group</th><th>Stream</th><th>Country</th><th>Device</th><th>OS/Browser</th><th>Brand</th><th>Type</th><th>IP</th><th>Key</th><th>Out</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   q('#pageinfo').textContent=`${logOffset+1}–${logOffset+r.rows.length} of ${r.total}`;
   q('#prev').disabled=logOffset===0;
@@ -507,34 +765,43 @@ async function loadLogs(){
 
 /* ---------- POSTBACKS (conversions) ---------- */
 async function postbacks(){
-  view().innerHTML=`<div class="toolbar"><input id="pb-group" placeholder="group" size="12"><button class="primary" id="pb-go">Show</button>
+  view().innerHTML=`<div class="toolbar"><select id="pb-group"><option value="">all groups</option></select><button class="primary" id="pb-go">Show</button>
     <div class="spacer"></div><span id="pb-total" class="muted"></span></div><div id="pb-wrap">${stateHTML('loading…')}</div>`;
   q('#pb-go').onclick=loadPostbacks;
-  q('#pb-group').onkeydown=e=>{if(e.key==='Enter')loadPostbacks()};
+  q('#pb-group').onchange=loadPostbacks;
   loadPostbacks();
+  // Postbacks are keyed by the group's display name — that is what the engine
+  // writes alongside the conversion.
+  const gs=await api('/api/groups').then(r=>r.json()).catch(()=>[]);
+  const s=q('#pb-group'); if(!s||!Array.isArray(gs))return;
+  gs.forEach(g=>{if(g.name)s.insertAdjacentHTML('beforeend',`<option value="${esc(g.name)}">${esc(g.id)} — ${esc(g.name)}</option>`)});
 }
 async function loadPostbacks(){
-  const g=q('#pb-group').value.trim();
+  const g=q('#pb-group').value;
   const wrap=q('#pb-wrap'); wrap.innerHTML=stateHTML('loading…');
   const r=await api('/api/postbacks?'+rangeQS()+(g?'&group='+encodeURIComponent(g):'')).then(r=>r.json()).catch(()=>null);
+  if(!q('#pb-wrap'))return;
   if(!r||!r.rows){wrap.innerHTML=stateHTML('failed to load conversions','err');return}
-  q('#pb-total').innerHTML='Total profit: <b class="ok">'+(r.total||0).toFixed(2)+'</b>';
+  q('#pb-total').innerHTML=`${r.rows.length} conversion${r.rows.length===1?'':'s'} · profit <b class="ok">${money(r.total)}</b>`;
   if(!r.rows.length){wrap.innerHTML=stateHTML('no conversions for the period');return}
   wrap.innerHTML=`<div class="tw"><table><thead><tr><th>Time</th><th>Group</th><th>Stream</th><th>Domain</th><th>Device</th><th>Country</th><th>City</th><th>Profit</th><th>CID</th></tr></thead><tbody>${
-    r.rows.map(x=>`<tr><td>${when(x.ts)}</td><td>${esc(x.group)}</td><td>${esc(x.stream)}</td><td class="ell">${esc(x.domain)}</td><td>${esc(x.device)}</td><td>${esc(x.country)}</td><td>${esc(x.city)}</td><td class="ok">${(x.profit||0).toFixed(2)}</td><td>${esc(x.cid)}</td></tr>`).join('')}</tbody></table></div>`;
+    r.rows.map(x=>`<tr><td>${when(x.ts)}</td><td>${esc(x.group)}</td><td>${esc(x.stream)}</td><td class="ell">${esc(x.domain)}</td><td>${esc(x.device)}</td><td><span class="flag">${flag(x.country)}</span>${esc(x.country)}</td><td>${esc(x.city)}</td><td class="ok num">${money(x.profit)}</td><td class="mono">${esc(x.cid)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 /* ---------- KEYS (keywords) ---------- */
-function keys(){
+async function keys(){
   const today=new Date().toISOString().slice(0,10);
   view().innerHTML=`<div class="toolbar">
-    <input id="k-group" placeholder="group ID" size="12">
+    <input id="k-group" placeholder="group ID" size="14" list="k-ids"><datalist id="k-ids"></datalist>
     <input id="k-date" type="date" value="${today}">
     <select id="k-se"><option value="0">regular keys</option><option value="1">from search engines</option></select>
     <button class="primary" id="k-go">Show</button></div>
-    <textarea id="k-data" spellcheck="false" class="code muted">specify group and date…</textarea>`;
+    <textarea id="k-data" spellcheck="false" class="code muted">specify group and date…</textarea>
+    <p class="muted">Keywords are collected per group and day when <b>Save keywords</b> is enabled in the group settings.</p>`;
   q('#k-go').onclick=loadKeys;
   q('#k-group').onkeydown=e=>{if(e.key==='Enter')loadKeys()};
+  const gs=await api('/api/groups').then(r=>r.json()).catch(()=>[]);
+  const dl=q('#k-ids'); if(dl&&Array.isArray(gs))dl.innerHTML=gs.map(g=>`<option value="${esc(g.id)}">`).join('');
 }
 async function loadKeys(){
   const g=q('#k-group').value.trim(),d=q('#k-date').value,se=q('#k-se').value;
@@ -544,59 +811,119 @@ async function loadKeys(){
 }
 
 /* ==================================================================
-   GROUPS — master–detail editor.
-
-   The right pane shows exactly ONE form: the group's or a stream's.
-   That is the whole point of the layout: a stream form used to render
-   BELOW the group form, so selecting a stream pushed the card far down
-   the page and the code had to chase it with scrollIntoView(). Here both
-   panes scroll inside themselves and the selected form always starts at
-   the same place, so nothing moves and nothing needs chasing.
+   GROUPS — a group is a waterfall of streams, a stream is a rule:
+   WHEN (conditions) → THEN (output), tried top to bottom, first match
+   wins. The left pane is the tree; the right pane shows exactly ONE
+   thing: the group's waterfall or one stream's editor. Both panes scroll
+   inside themselves, so nothing on the page ever moves.
 
    SEL.s === -1 means "the group itself is selected".
    ================================================================== */
-let GROUPS=[], SEL={g:-1,s:-1}, EXPANDED=new Set(), DIRTY=false, TREEQ='';
+let GROUPS=[], SEL={g:-1,s:-1}, EXPANDED=new Set(), DIRTY=false, TREEQ='', GSET=false, GPERF=[], COND_OPEN=new Set();
 const REDIRECTS=['http_redirect','javascript','meta_refresh','iframe_redirect','iframe_selection','js_redirect','js_selection','show_text','show_page_html','under_construction','stop','403_forbidden','404_not_found','500_server_error','api','show_out','curl'];
 const HEADERS=['text/html','text/plain','application/javascript'];
 const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const STABS=['Main','Devices','WAP','Geo','Filters','UA/OS/Brand','Schedule','Limit','Bots','Remote','API'];
 const opt=(v,l,cur)=>`<option value="${v}"${String(cur)===String(v)?' selected':''}>${l}</option>`;
-const sel=(id,opts)=>`<select id="${id}">${opts}</select>`;
+const sel=(id,opts,cls)=>`<select id="${id}"${cls?` class="${cls}"`:''}>${opts}</select>`;
 const chevSvg='<svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M9 6l6 6-6 6"/></svg>';
-// filter flag: 0 off / 1 exclude / 2 include
-const flagSel=(id,cur)=>sel(id,opt(0,'off',cur)+opt(1,'exclude',cur)+opt(2,'include',cur));
-const lf=(g,key)=>{const f=(g&&g[key])||{};return{flag:f.flag||0,vals:(f.values||[]).join('\n'),raw:f.raw||''}};
+const lf=(r,key)=>{const f=(r&&r[key])||{};return{flag:f.flag||0,vals:(f.values||[]).join(', '),raw:f.raw||''}};
 const curGroup=()=>SEL.g>=0?GROUPS[SEL.g]:null;
 const curStream=()=>{const g=curGroup();return (g&&SEL.s>=0&&g.streams&&g.streams[SEL.s])||null};
+
+// The conditions a stream can carry. `kind` decides how a row is edited,
+// summarised on the waterfall and collected back into the model.
+const COND=[
+  {k:'country',l:'Country',g:'Geo',kind:'list',ph:'ru, us, de',hint:'ISO codes, comma-separated'},
+  {k:'city',l:'City',g:'Geo',kind:'list',ph:'moscow, new york'},
+  {k:'region',l:'Region',g:'Geo',kind:'list',ph:'ISO region codes'},
+  {k:'device',l:'Device type',g:'Device',kind:'device'},
+  {k:'brand',l:'Brand',g:'Device',kind:'list',ph:'Apple, Samsung, Xiaomi'},
+  {k:'operators',l:'WAP operator',g:'Device',kind:'ops'},
+  {k:'os',l:'OS',g:'Browser / OS',kind:'list',ph:'Android, Android 13, iOS 16'},
+  {k:'browser',l:'Browser',g:'Browser / OS',kind:'list',ph:'Chrome, Safari 16'},
+  {k:'yabrowser',l:'Yandex Browser',g:'Browser / OS',kind:'tri',opts:['any','exclude','only Yandex Browser']},
+  {k:'ua_text',l:'User-Agent',g:'Text',kind:'list',ph:'text or /regex/'},
+  {k:'referer_text',l:'Referer',g:'Text',kind:'list',ph:'text or /regex/'},
+  {k:'domain_text',l:'Domain',g:'Text',kind:'list',ph:'example.com or /regex/'},
+  {k:'key_text',l:'Keyword',g:'Text',kind:'list',ph:'text or /regex/'},
+  {k:'lang',l:'Language',g:'Text',kind:'list',ph:'ru, en'},
+  {k:'ip_list',l:'IP list',g:'Other',kind:'iplist'},
+  {k:'unique',l:'Unique',g:'Other',kind:'tri',opts:['any','unique only','repeat visits only']},
+  {k:'has_referer',l:'Referer present',g:'Other',kind:'tri',opts:['any','required','must be absent']},
+  {k:'schedule',l:'Schedule',g:'Other',kind:'schedule'},
+  {k:'limit',l:'Impression limit',g:'Other',kind:'limit'},
+];
+const COND_GROUPS=['Geo','Device','Browser / OS','Text','Other'];
+const LISTKEYS=COND.filter(c=>c.kind==='list').map(c=>c.k);
+const BOTCHK=[['ch_ua','UA signatures'],['ch_empty_ua','Empty UA'],['ch_empty_ref','Empty referer'],['ch_empty_lang','Empty language'],['ch_ipv6','IPv6'],['ch_ptr','PTR lookup'],['ch_list_ua','UA blacklist'],
+  ['ch_bot_ip_google','Google IPs'],['ch_bot_ip_yandex','Yandex IPs'],['ch_bot_ip_bing','Bing IPs'],['ch_bot_ip_baidu','Baidu IPs'],['ch_bot_ip_mail','Mail.ru IPs'],['ch_bot_ip_yahoo','Yahoo IPs'],['ch_bot_ip_others','Other bot IPs']];
+
+function configured(r,c){
+  r=r||{};
+  switch(c.kind){
+    case 'list':{const f=r[c.k]||{};return (f.flag||0)!==0&&((f.values||[]).length>0||!!f.raw)}
+    case 'device':return !!(r.computer||r.phone||r.tablet);
+    case 'ops':return Object.keys(r.operators||{}).length>0;
+    case 'tri':return (r[c.k]||0)!==0;
+    case 'iplist':{const f=r.ip_list||{};return (f.flag||0)!==0&&!!f.file}
+    case 'schedule':return !!(r.schedule&&r.schedule.enabled);
+    case 'limit':return !!(r.limit&&r.limit.enabled);
+  }
+  return false;
+}
+// One chip per configured condition — the row of the waterfall reads as a sentence.
+function condChips(s){
+  const r=s.rules||{}, out=[];
+  const chip=(k,v)=>out.push(`<span class="chip" title="${esc(k+': '+v)}"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></span>`);
+  COND.forEach(c=>{
+    if(!configured(r,c))return;
+    switch(c.kind){
+      case 'list':{const f=r[c.k],vals=(f.values&&f.values.length?f.values:[f.raw]);chip(c.l.toLowerCase(),(f.flag===1?'∉ ':'∈ ')+vals.slice(0,3).join(', ')+(vals.length>3?' +'+(vals.length-3):''));break}
+      case 'device':{const ok=['computer','phone','tablet'].filter(d=>!r[d]);chip('device',ok.length?ok.join(', '):'none');break}
+      case 'ops':{const o=r.operators,ks=Object.keys(o);chip('operator',ks.map(k=>(o[k]===2?'':'¬')+k).slice(0,3).join(', ')+(ks.length>3?' +'+(ks.length-3):''));break}
+      case 'tri':chip(c.l.toLowerCase(),c.opts[r[c.k]]||'?');break;
+      case 'iplist':chip('ip',(r.ip_list.flag===1?'∉ ':'∈ ')+r.ip_list.file);break;
+      case 'schedule':{const d=(r.schedule.days||[]).map((on,i)=>on?DAYS[i]:null).filter(Boolean);chip('days',d.length===7?'every day':(d.join(' ')||'never'));break}
+      case 'limit':{const l=r.limit;chip('limit',l.count+(l.type===2?' / '+(l.seconds||86400)+' s':' / day'));break}
+    }
+  });
+  return out.length?out.join(''):'<span class="chip any">any visitor</span>';
+}
 
 function markDirty(){DIRTY=true;const d=q('#dirty');if(d)d.classList.add('on')}
 function clearDirty(){DIRTY=false;const d=q('#dirty');if(d)d.classList.remove('on')}
 function confirmLeave(){return !DIRTY||confirm('There are unsaved changes in the groups editor. Leave and discard them?')}
 
+const perfRows=(g)=>GPERF.filter(r=>r.group_id?r.group_id===g.id:r.group===(g.name||''));
+function perfOf(g,stream){const o={hits:0,unique:0,bots:0,conv:0,profit:0};perfRows(g).forEach(r=>{if(stream!=null&&r.stream!==stream)return;o.hits+=r.hits||0;o.unique+=r.unique||0;o.bots+=r.bots||0;o.conv+=r.conv||0;o.profit+=r.profit||0});return o}
+async function refreshPerf(){
+  const perf=await api('/api/stats/performance?'+rangeQS()).then(r=>r.json()).catch(()=>[]);
+  if(TAB!=='groups')return;
+  GPERF=Array.isArray(perf)?perf:[];
+  commit(); renderTree(); renderPane();
+}
+
 async function groups(){
   view().innerHTML=stateHTML('loading…');
-  GROUPS=await api('/api/groups').then(r=>r.json()).catch(()=>[])||[];
-  clearDirty(); TREEQ='';
+  const [gs,perf]=await Promise.all([
+    api('/api/groups').then(r=>r.json()).catch(()=>[]),
+    api('/api/stats/performance?'+rangeQS()).then(r=>r.json()).catch(()=>[]),
+  ]);
+  if(TAB!=='groups')return;
+  GROUPS=Array.isArray(gs)?gs:[]; GPERF=Array.isArray(perf)?perf:[];
+  clearDirty(); TREEQ=''; GSET=false; COND_OPEN=new Set();
   SEL={g:GROUPS.length?0:-1,s:-1};
   EXPANDED=new Set(SEL.g>=0?[SEL.g]:[]);
   view().innerHTML=`
-    <div class="gbar">
-      <button id="newg" class="primary">+ group</button>
-      <span class="muted" style="font-size:12.5px">${GROUPS.length} group(s)</span>
-      <div class="spacer"></div>
-      <span class="dirty" id="dirty"><span class="d"></span>unsaved changes</span>
-      <span id="gmsg" class="muted"></span>
-      <button class="primary" id="saveall">Save all</button>
-    </div>
     <div class="ged">
       <div class="glist" id="glist">
-        <input class="gsearch" id="gsearch" placeholder="search group or stream…" autocomplete="off">
+        <input class="gsearch" id="gsearch" placeholder="search groups and streams…" autocomplete="off">
         <div id="gtree"></div>
+        <button class="newg" id="newg">${icon('plus')} New group</button>
       </div>
       <div class="gpane" id="gpane"></div>
     </div>`;
   q('#newg').onclick=newGroup;
-  q('#saveall').onclick=saveAll;
   // The input is outside #gtree on purpose: re-rendering the tree on every
   // keystroke would otherwise destroy the field and drop the caret.
   q('#gsearch').oninput=e=>{TREEQ=e.target.value.trim();renderTree()};
@@ -619,18 +946,19 @@ function renderTree(){
   const t=TREEQ.toLowerCase();
   const shown=GROUPS.map((g,i)=>[g,i]).filter(([g])=>treeMatch(g,null));
   const body=shown.map(([g,i])=>{
-    const open=EXPANDED.has(i), n=(g.streams||[]).length;
-    const head=`<div class="gline"><span class="chev ${open?'open':''}" data-toggle="${i}">${chevSvg}</span>`+
-      `<button class="gnode ${(i===SEL.g&&SEL.s<0)?'active':''}" data-g="${i}"><span class="dot ${g.status?'on':''}"></span>`+
-      `<span class="nm">${esc(g.id||'(no id)')}</span><span class="cnt">${n}</span></button></div>`;
+    const open=EXPANDED.has(i), n=(g.streams||[]).length, p=perfOf(g,null);
+    const head=`<div class="gline ${(i===SEL.g&&SEL.s<0)?'active':''}"><span class="chev ${open?'open':''}" data-toggle="${i}">${chevSvg}</span>`+
+      `<button class="gnode" data-g="${i}"><span class="dot ${g.status?'on':''}"></span>`+
+      `<span class="txt"><span class="nm">${esc(g.id||'(no id)')}</span><span class="sub">${esc(g.name||'')}</span></span>`+
+      `<span class="agg"><span class="n">${fmt(p.hits)}</span><span class="c">${n} stream${n===1?'':'s'}</span></span></button></div>`;
     if(!open)return head;
     // While searching, show the streams that match — unless the group itself
     // matched, in which case all of its streams stay visible.
     const groupHit=!t||String(g.id||'').toLowerCase().includes(t)||String(g.name||'').toLowerCase().includes(t);
     const streams=(g.streams||[]).map((s,j)=>[s,j]).filter(([s])=>groupHit||treeMatch(g,s))
       .map(([s,j])=>`<button class="snode ${(i===SEL.g&&j===SEL.s)?'active':''}" data-g="${i}" data-s="${j}">`+
-        `<span class="dot ${s.status?'on':''}"></span><span class="nm">${esc(s.name||'stream '+(j+1))}</span></button>`).join('');
-    return head+`<div class="subtree">${streams}<button class="snode add" data-g="${i}" data-add="1">+ stream</button></div>`;
+        `<span class="no">${j+1}</span><span class="dot ${s.status?'on':''}"></span><span class="nm">${esc(s.name||'stream '+(j+1))}</span><span class="n">${fmt(perfOf(g,s.name).hits)}</span></button>`).join('');
+    return head+`<div class="subtree">${streams}<button class="snode add" data-g="${i}" data-add="1">${icon('plus')} stream</button></div>`;
   }).join('');
   box.innerHTML=shown.length?body:'<div class="none">'+(GROUPS.length?'nothing matches':'no groups yet')+'</div>';
   box.querySelectorAll('.chev').forEach(c=>c.onclick=()=>{
@@ -642,193 +970,210 @@ function renderTree(){
     if(b.dataset.add){SEL.g=gi;EXPANDED.add(gi);addStream();return}
     SEL.g=gi; EXPANDED.add(gi);
     SEL.s=b.dataset.s!==undefined?+b.dataset.s:-1;
+    COND_OPEN=new Set();
     renderTree(); renderPane();
   });
 }
 
-/* ---------- pane: group form OR stream form ---------- */
+/* ---------- pane: group waterfall OR stream editor ---------- */
 function renderPane(){
   const pane=q('#gpane'); if(!pane)return;
   const g=curGroup();
-  if(!g)pane.innerHTML='<div class="empty-pane"><div>No group selected.<br>Create one with <b>+ group</b>.</div></div>';
+  if(!g){pane.innerHTML=`<div class="empty-pane"><div>No groups yet.<br><br><button class="primary" id="newg2">${icon('plus')} New group</button></div></div>`;q('#newg2').onclick=newGroup}
   else if(SEL.s>=0&&curStream())streamForm();
   else groupForm();
   pane.scrollTop=0;                 // every form starts at its own top
 }
+const saveCluster=()=>`<span class="dirty ${DIRTY?'on':''}" id="dirty"><span class="d"></span>unsaved</span><span id="gmsg" class="muted" style="font-size:12px"></span><button class="primary" id="saveall" title="Ctrl+S">Save</button>`;
+function bindSave(){const b=q('#saveall');if(b)b.onclick=saveAll}
+const stat3=(p,dim)=>`<span class="c-st ${dim?'dim':''}"><span class="st"><b>${fmt(p.hits)}</b><small>hits</small></span><span class="st att">${fmt(p.bots)}<small>bots</small></span><span class="st ok">${fmt(p.conv)}<small>conv</small></span></span>`;
 
 function groupForm(){
-  const g=curGroup();
+  const g=curGroup(), p=perfOf(g,null), base=(ENGINE||'').replace(/\/$/,''), link=base+'/'+(g.id||'ID');
   q('#gpane').innerHTML=`
     <div class="phead">
-      <div>
-        <div class="crumb">Group</div>
-        <div class="ttl"><span class="dot ${g.status?'on':''}"></span>${esc(g.id||'(no id)')}</div>
+      <div class="min0">
+        <div class="ttl"><span class="dot ${g.status?'on':''}"></span><span class="big">${esc(g.id||'(no id)')}</span>${g.status?'<span class="pill on">active</span>':'<span class="pill off">off</span>'}${(g.aliases||[]).map(a=>`<span class="chip"><span class="k">alias</span>${esc(a)}</span>`).join('')}${g.name?`<span class="muted">${esc(g.name)}</span>`:''}</div>
+        <div class="sub">${icon('link')}<a class="mono" href="${esc(link)}" target="_blank" rel="noreferrer">${esc(link)}</a><button class="iconbtn xs" id="copylink" title="Copy link">${icon('copy')}</button>
+          <span>· ${fmt(p.hits)} hits · ${fmt(p.bots)} bots · ${fmt(p.conv)} conv · ${money(p.profit)} <span class="muted">(${periodLabel()})</span></span></div>
       </div>
-      <span class="sub">${g.status?'active':'off'} · ${esc(g.redirect||'stop')} · streams: ${(g.streams||[]).length}</span>
-      <div class="spacer"></div>
-      <button id="addstream">+ stream</button>
-      <button id="clrlog">Clear logs</button>
-      <button id="delg" class="danger">Delete group</button>
+      <div class="acts">${saveCluster()}<button id="addstream">${icon('plus')} Stream</button><button id="gset" class="${GSET?'active':''}">${icon('settings')} Settings</button></div>
     </div>
     <div class="pbody">
-    <div class="g2c">
-      <div class="fld"><label>ID (URL: /ID)</label><input type="text" id="g_id" value="${esc(g.id)}"></div>
+      ${GSET?groupSettings(g):''}
+      <div class="wf" id="wf">${waterfall(g)}</div>
+    </div>`;
+  bindSave();
+  q('#addstream').onclick=()=>{commit();addStream()};
+  q('#gset').onclick=()=>{commit();GSET=!GSET;groupForm()};
+  q('#copylink').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(link).then(()=>{const b=q('#copylink');b.innerHTML=icon('check');setTimeout(()=>{if(b.isConnected)b.innerHTML=icon('copy')},1200)})};
+  const wf=q('#wf');
+  wf.querySelectorAll('.wfr[data-s]').forEach(row=>{
+    const j=+row.dataset.s;
+    row.onclick=e=>{if(e.target.closest('.sw')||e.target.closest('.c-no'))return;commit();SEL.s=j;COND_OPEN=new Set();renderTree();renderPane()};
+    row.querySelector('[data-toggle-s]').onchange=e=>{g.streams[j].status=e.target.checked;markDirty();renderTree();groupForm()};
+    // Drag a row to reorder — the order IS the routing logic.
+    row.ondragstart=e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(j));row.classList.add('drag')};
+    row.ondragend=()=>{row.classList.remove('drag');wf.querySelectorAll('.over').forEach(x=>x.classList.remove('over'))};
+    row.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='move';row.classList.add('over')};
+    row.ondragleave=()=>row.classList.remove('over');
+    row.ondrop=e=>{e.preventDefault();const from=+e.dataTransfer.getData('text/plain');if(isNaN(from)||from===j)return;
+      commit();const a=g.streams,[m]=a.splice(from,1);a.splice(j,0,m);markDirty();renderTree();groupForm()};
+  });
+  const first=wf.querySelector('[data-add-first]'); if(first)first.onclick=()=>{commit();addStream()};
+  const clr=q('#clrlog'); if(clr)clr.onclick=async()=>{
+    if(!confirm('Delete all logged visits of group '+g.id+'?'))return;
+    const r=await api('/api/logs?group='+encodeURIComponent(g.id),{method:'DELETE',headers:{'X-CSRF-Token':CSRF}});
+    const m=q('#gmsg'); if(m)m.innerHTML=r.ok?'<span class="ok">logs marked for deletion</span>':'<span class="err">error</span>';
+  };
+  const del=q('#delg'); if(del)del.onclick=delGroup;
+}
+function waterfall(g){
+  const st=g.streams||[], fb=perfOf(g,'-');
+  const head=`<div class="wfh"><span>#</span><span>on</span><span>stream</span><span>when</span><span>then</span><span style="text-align:right">${periodLabel()}</span></div>`;
+  const rows=st.map((s,j)=>{const p=perfOf(g,s.name),o=s.out||{},bt=s.bots||{};return `<div class="wfr ${s.status?'':'off'}" draggable="true" data-s="${j}">
+      <span class="c-no" title="Drag to reorder">${icon('grip')}<span class="no">${j+1}</span></span>
+      <span class="c-on"><label class="sw" title="${s.status?'enabled':'disabled'}"><input type="checkbox" data-toggle-s="${j}" ${s.status?'checked':''}><i></i></label></span>
+      <span class="c-nm" title="${esc(s.name)}">${esc(s.name||'stream '+(j+1))}</span>
+      <span class="c-when">${condChips(s)}</span>
+      <span class="c-then">${icon('arrow')}<span class="o"><span><span class="pill acc">${esc(o.redirect||'—')}</span><span class="mono ell" title="${esc(o.out||'')}">${esc(firstLine(o.out))}</span></span>
+        <span>${bt.redirect&&bt.redirect!=='skip'?`<span class="pill bot">bots → ${esc(bt.redirect)}</span>`:'<span class="pill off">bots → same</span>'}</span></span></span>
+      ${stat3(p)}</div>`}).join('');
+  const empty=st.length?'':`<div class="wfempty">No streams yet — every visitor gets the group default. <button class="link" data-add-first>Add the first stream</button></div>`;
+  const fbrow=`<div class="wfr fb"><span class="c-no"></span><span></span><span class="c-nm"><i>no match</i></span><span class="c-when muted">falls through to the group default</span>
+      <span class="c-then">${icon('arrow')}<span class="pill off">${esc(g.redirect||'stop')}</span><span class="mono ell" title="${esc(g.out||'')}">${esc(firstLine(g.out))}</span></span>${stat3(fb,true)}</div>`;
+  return head+rows+empty+fbrow+`<div class="wfnote">${icon('grip')} Streams are tried top to bottom — the first match wins. Drag a row to reorder, click it to edit.</div>`;
+}
+function groupSettings(g){
+  const base=(ENGINE||'').replace(/\/$/,''), fw=g.firewall||{};
+  return `<div class="card gsettings">
+    <h3>Group</h3>
+    <div class="g3c">
+      <div class="fld"><label>ID <span class="muted">(URL: /ID)</span></label><input type="text" id="g_id" value="${esc(g.id)}"></div>
       <div class="fld"><label>Name</label><input type="text" id="g_name" value="${esc(g.name)}"></div>
-      <div class="fld"><label>Aliases (comma-separated)</label><input type="text" id="g_aliases" value="${esc((g.aliases||[]).join(', '))}"></div>
-      <div class="fld"><label>Geo</label>${sel('g_geo',opt('cf','Cloudflare',g.geo)+opt('sypex','MaxMind/mmdb',g.geo))}</div>
-      <div class="fld"><label>Default redirect</label>${sel('g_redirect',REDIRECTS.map(x=>opt(x,x,g.redirect)).join(''))}</div>
-      <div class="fld"><label>Default response Content-Type</label>${sel('g_header',HEADERS.map(x=>opt(x,x,g.header)).join(''))}</div>
+      <div class="fld"><label>Aliases <span class="muted">(comma-separated)</span></label><input type="text" id="g_aliases" value="${esc((g.aliases||[]).join(', '))}"></div>
+    </div>
+    <div class="chk"><input type="checkbox" id="g_status" ${g.status?'checked':''}><label for="g_status">Group active</label></div>
+    <h3>Default output <span class="muted">— when no stream matches</span></h3>
+    <div class="g2c">
+      <div class="fld"><label>Redirect type</label>${sel('g_redirect',REDIRECTS.map(x=>opt(x,x,g.redirect)).join(''))}</div>
+      <div class="fld"><label>Content-Type</label>${sel('g_header',HEADERS.map(x=>opt(x,x,g.header)).join(''))}</div>
+    </div>
+    <div class="fld"><label>Out</label><textarea id="g_out" class="mono">${esc(g.out)}</textarea>
+      <div class="hint">Macros: [KEY] [PATH] [IP] [COUNTRY] [CITY] [()COUNTRY()] [DEVICE] [CID] [PAR-1..5] [RANDNUM-a-b] [RANDLINE-(file)-n] [RANDDFL-(dir)-n]</div></div>
+    <h3>Visitors</h3>
+    <div class="g3c">
+      <div class="fld"><label>Geo source</label>${sel('g_geo',opt('cf','Cloudflare headers',g.geo)+opt('sypex','MaxMind / mmdb',g.geo))}</div>
       <div class="fld"><label>Uniqueness</label>${sel('g_uniq',opt('ip','by IP (Redis)',g.uniq_method)+opt('cookie','by cookie',g.uniq_method))}</div>
       <div class="fld"><label>Uniqueness window, sec</label><input type="number" id="g_uniqsec" value="${g.uniq_seconds||86400}"></div>
     </div>
-    <div class="fld"><label>Default Out</label><textarea id="g_out">${esc(g.out)}</textarea>
-      <div class="hint">Macros: [KEY] [PATH] [IP] [COUNTRY] [CITY] [()COUNTRY()] [DEVICE] [CID] [RANDNUM-a-b] [RANDLINE-(file)-n] [RANDDFL-(dir)-n]</div></div>
-    <div class="chk"><input type="checkbox" id="g_status" ${g.status?'checked':''}><label for="g_status">Group active</label></div>
-    <h2>Anti-flood</h2>
-    <div class="chk"><input type="checkbox" id="fw_en" ${g.firewall&&g.firewall.enabled?'checked':''}><label for="fw_en">Enable anti-flood</label></div>
-    <div class="g2c">
-      <div class="fld"><label>Max requests per IP</label><input type="number" id="fw_q" value="${(g.firewall&&g.firewall.queries)||100}"></div>
-      <div class="fld"><label>Per window, sec</label><input type="number" id="fw_s" value="${(g.firewall&&g.firewall.seconds)||60}">
-        <div class="hint">0 falls back to 60 s on the engine — a window is always applied.</div></div>
+    <div class="row" style="gap:24px">
+      <div class="chk" style="margin:0"><input type="checkbox" id="g_savekeys" ${g.save_keys?'checked':''}><label for="g_savekeys">Save keywords</label></div>
+      <div class="chk" style="margin:0"><input type="checkbox" id="g_savekeys_se" ${g.save_keys_se?'checked':''}><label for="g_savekeys_se">Save keywords from search engines</label></div>
     </div>
-    ${streamsTable(g)}
-    ${linksPanel(g)}
-    </div>`;
-  q('#delg').onclick=delGroup;
-  q('#addstream').onclick=()=>{commit();addStream()};
-  q('#clrlog').onclick=async()=>{
-    if(!confirm('Delete all logs for group '+g.id+'?'))return;
-    const r=await api('/api/logs?group='+encodeURIComponent(g.id),{method:'DELETE',headers:{'X-CSRF-Token':CSRF}});
-    alert(r.ok?'Group logs marked for deletion':'Error');
-  };
-  q('#gpane').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{
-    commit();SEL.s=+b.dataset.open;renderTree();renderPane();
-  });
-}
-// A compact overview of the group's streams: order, status and where each sends.
-function streamsTable(g){
-  const st=g.streams||[];
-  if(!st.length)return '<h2>Streams</h2><div class="panel" style="box-shadow:none"><span class="muted">No streams yet. The group falls back to its default redirect.</span></div>';
-  return `<h2>Streams (matched top to bottom)</h2><div class="tw"><table><thead><tr><th>#</th><th>Name</th><th>Status</th><th>Redirect</th><th>Out</th><th></th></tr></thead><tbody>${
-    st.map((s,j)=>`<tr><td>${j+1}</td><td>${esc(s.name||'stream '+(j+1))}</td>
-      <td>${s.status?'<span class="pill on">on</span>':'<span class="pill off">off</span>'}</td>
-      <td>${esc((s.out||{}).redirect||'—')}</td><td class="ell">${esc((s.out||{}).out||'')}</td>
-      <td><button data-open="${j}" class="ghost">edit →</button></td></tr>`).join('')}</tbody></table></div>`;
-}
-function linksPanel(g){
-  const base=(ENGINE||'').replace(/\/$/,'');
-  const ids=[g.id,...(g.aliases||[])].filter(Boolean);
-  const rows=ids.map(id=>`<div class="lnk">↗ <a href="${esc(base+'/'+id)}" target="_blank" rel="noreferrer">${esc(base+'/'+id)}</a></div>`).join('')||'<div class="muted">specify group ID</div>';
-  return `<h2>Group links (what the engine serves)</h2><div class="panel" style="box-shadow:none">
-    ${rows}
+    <h3>Anti-flood</h3>
+    <div class="chk"><input type="checkbox" id="fw_en" ${fw.enabled?'checked':''}><label for="fw_en">Limit requests per IP</label></div>
+    <div class="g2c">
+      <div class="fld"><label>Max requests per IP</label><input type="number" id="fw_q" value="${fw.queries||100}"></div>
+      <div class="fld"><label>Per window, sec</label><input type="number" id="fw_s" value="${fw.seconds||60}"><div class="hint">0 falls back to 60 s — a window is always applied</div></div>
+    </div>
+    <h3>Links</h3>
+    ${[g.id,...(g.aliases||[])].filter(Boolean).map(id=>`<div class="lnk">↗ <a href="${esc(base+'/'+id)}" target="_blank" rel="noreferrer">${esc(base+'/'+id)}</a></div>`).join('')||'<div class="muted">specify a group ID</div>'}
     <div class="lnk muted">with keyword: <code>${esc(base+'/'+(g.id||'ID')+'?q=KEYWORD')}</code></div>
     <div class="lnk muted">with extra params ([PAR-1]..[PAR-5]): <code>${esc(base+'/'+(g.id||'ID')+'?p1=val1&p2=val2')}</code></div>
     <div class="lnk muted">postback pixel: <code>${esc(base+'/?pb=KEY&cid=[CID]&profit=1.50')}</code></div>
+    <h3 class="err">Danger zone</h3>
+    <div class="row"><button id="clrlog">Clear logged visits</button><button id="delg" class="danger">Delete group</button></div>
   </div>`;
 }
 
-function flt(label,key,g){const v=lf(g,key);return `<div class="flt"><div class="fld"><label>${label}</label><textarea id="f_${key}_v">${esc(v.vals||v.raw)}</textarea></div><div class="fld"><label>mode</label>${flagSel('f_'+key+'_f',v.flag)}</div></div>`}
-
+/* ---------- stream editor ---------- */
+const advOpen=(s)=>{const o=s.out||{},rm=s.remote||{},am=s.api_mac||{},sp=s.separation||{};return !!((o.chance&&o.chance!==100)||sp.enabled||rm.enabled||s.curl||s.b_curl||am.enabled)};
 function streamForm(){
-  const g=curGroup(), s=curStream(), r=s.rules||{}, o=s.out||{};
-  const ops=r.operators||{};
-  const sec=(id,html)=>`<div class="sec" data-sec="${id}">${html}</div>`;
-  const n=(g.streams||[]).length;
+  const g=curGroup(), s=curStream(), r=s.rules||{}, o=s.out||{}, bt=s.bots||{}, n=(g.streams||[]).length, p=perfOf(g,s.name);
+  const rm=s.remote||{}, am=s.api_mac||{}, sp=s.separation||{};
+  const shown=COND.filter(c=>configured(r,c)||COND_OPEN.has(c.k));
+  const shownKeys=new Set(shown.map(c=>c.k));
   q('#gpane').innerHTML=`
     <div class="phead">
       <button class="backlink" id="toparent">${icon('back')}${esc(g.id||'group')}</button>
-      <div>
-        <div class="crumb"><b>${esc(g.id||'(no id)')}</b> / stream ${SEL.s+1} of ${n}</div>
-        <div class="ttl"><span class="dot ${s.status?'on':''}"></span>${esc(s.name||'(unnamed)')}</div>
+      <div class="min0">
+        <div class="crumb"><b>${esc(g.id||'(no id)')}</b> / stream ${SEL.s+1} of ${n} · ${fmt(p.hits)} hits · ${fmt(p.bots)} bots · ${fmt(p.conv)} conv <span class="muted">(${periodLabel()})</span></div>
+        <div class="ttl"><input type="text" id="s_name" class="namein" value="${esc(s.name)}" placeholder="stream name"><label class="sw" title="Stream enabled"><input type="checkbox" id="s_status" ${s.status?'checked':''}><i></i></label><span class="muted" id="s_status_l">${s.status?'enabled':'disabled'}</span></div>
       </div>
-      <div class="spacer"></div>
-      <button id="up" title="Move up (matched earlier)" ${SEL.s===0?'disabled':''}>↑</button>
-      <button id="down" title="Move down" ${SEL.s===n-1?'disabled':''}>↓</button>
-      <button id="dels" class="danger">Delete stream</button>
+      <div class="acts">${saveCluster()}<button class="iconbtn" id="up" title="Move up (matched earlier)" ${SEL.s===0?'disabled':''}>${icon('up')}</button><button class="iconbtn" id="down" title="Move down (matched later)" ${SEL.s===n-1?'disabled':''}>${icon('down')}</button><button id="dels" class="danger">Delete</button></div>
     </div>
     <div class="pbody streamcard">
-    <div class="ftabs" id="ftabs">
-      ${STABS.map((t,i)=>`<button data-sec="t${i}" class="${i?'':'active'}">${t}</button>`).join('')}
+    <div class="cols">
+      <div class="col">
+        <div class="card">
+          <div class="ch">When — conditions<span class="hint">${shown.length?shown.length+' of '+COND.length:'none: matches every visitor'}</span></div>
+          <div id="conds">${shown.map(c=>condRow(c,r)).join('')}</div>
+          <div class="addc"><button id="addcond">${icon('plus')} Add condition</button>
+            <div class="addmenu" id="addmenu" hidden>${COND_GROUPS.map(gr=>`<div class="grp"><div class="gt">${gr}</div>${COND.filter(c=>c.g===gr).map(c=>`<button data-addcond="${c.k}" ${shownKeys.has(c.k)?'disabled':''}>${c.l}</button>`).join('')}</div>`).join('')}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="ch">Then — output</div>
+          <div class="cb">
+            <div class="g2c">
+              <div class="fld"><label>Redirect type</label>${sel('s_redirect',REDIRECTS.map(x=>opt(x,x,o.redirect||'http_redirect')).join(''))}</div>
+              <div class="fld"><label>Distribution</label>${sel('s_dist',opt('random','random',o.distribution||'random')+opt('rotator','rotator (cookie)',o.distribution)+opt('evenly','evenly',o.distribution))}<div class="hint">for several variants separated by <code>|||</code></div></div>
+            </div>
+            <div class="fld" style="margin-bottom:0"><label>Out</label><textarea id="s_out" class="mono">${esc(o.out)}</textarea>
+              <div class="hint">Macros: [KEY] [PATH] [IP] [COUNTRY] [CITY] [()COUNTRY()] [DEVICE] [CID] [PAR-1..5] [RANDNUM-a-b] [RANDLINE-(file)-n] [RANDDFL-(dir)-n] [REMOTE]</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch">Bots<span class="hint">detection signals, then what bots get</span></div>
+          <div class="cb">
+            <div class="chips">${BOTCHK.map(([id,l])=>`<label class="chipck"><input type="checkbox" id="b_${id}" ${bt[id]?'checked':''}><span>${l}</span></label>`).join('')}</div>
+            <div class="g2c">
+              <div class="fld"><label>Serve bots</label>${sel('b_redirect',opt('skip','same as humans',bt.redirect||'skip')+REDIRECTS.map(x=>opt(x,x,bt.redirect)).join(''))}</div>
+              <div class="fld"><label>Content-Type for bots</label>${sel('b_header',HEADERS.map(x=>opt(x,x,bt.header||'text/html')).join(''))}</div>
+            </div>
+            <div class="fld" style="margin-bottom:0"><label>Out for bots</label><textarea id="b_out" class="mono short">${esc(bt.out||'')}</textarea></div>
+            <label class="swl"><input type="checkbox" id="b_save_ip" ${bt.save_ip?'checked':''}><i></i>append detected bot IPs to the search-engine list</label>
+          </div>
+        </div>
+        <details class="card adv" ${advOpen(s)?'open':''}>
+          <summary>Advanced<span class="hint">show chance · separation · [REMOTE] · CURL find/replace · API mac</span></summary>
+          <div class="cb">
+            <div class="g2c">
+              <div class="fld"><label>Show chance, % <span class="muted">(js redirects)</span></label><input type="number" id="s_chance" value="${o.chance==null?100:o.chance}"></div>
+              <div class="fld"><label>Separation file <span class="muted">(.dat, lines "key;output")</span></label><input type="text" id="sep_file" value="${esc(sp.file||'')}"></div>
+            </div>
+            <div class="chk"><input type="checkbox" id="sep_en" ${sp.enabled?'checked':''}><label for="sep_en">Separation: replace the output by keyword from the file</label></div>
+            <h3>[REMOTE] fetch</h3>
+            <div class="chk"><input type="checkbox" id="rm_en" ${rm.enabled?'checked':''}><label for="rm_en">Enabled</label></div>
+            <div class="fld"><label>URL <span class="muted">(substitutions [IP] [COUNTRY] [CITY] [LANG] [KEY])</span></label><input type="text" id="rm_url" class="mono" value="${esc(rm.url||'')}"></div>
+            <div class="g2c">
+              <div class="fld"><label>Regexp <span class="muted">(/…/ first group; empty — whole response)</span></label><input type="text" id="rm_re" class="mono" value="${esc(rm.regexp||'')}"></div>
+              <div class="fld"><label>Cache, sec</label><input type="number" id="rm_cache" value="${rm.cache||0}"></div>
+            </div>
+            <div class="fld"><label>Fallback output <span class="muted">(error or empty response)</span></label><textarea id="rm_res" class="mono short">${esc(rm.reserved||'')}</textarea></div>
+            <h3>CURL find/replace <span class="muted">(redirect = curl; lines "find|||replace", [KEY])</span></h3>
+            <div class="g2c">
+              <div class="fld"><label>For humans</label><textarea id="s_curl" class="mono short">${esc(s.curl||'')}</textarea></div>
+              <div class="fld"><label>For bots</label><textarea id="b_curl" class="mono short">${esc(s.b_curl||'')}</textarea></div>
+            </div>
+            <h3>API mac code</h3>
+            <div class="chk"><input type="checkbox" id="am_en" ${am.enabled?'checked':''}><label for="am_en">Return mac code in the API response</label></div>
+            <div class="g2c">
+              <div class="fld"><label>Code <span class="muted">(macros supported)</span></label><textarea id="am_code" class="mono short">${esc(am.code||'')}</textarea></div>
+              <div class="fld"><label>Probability, %</label><input type="number" id="am_prob" value="${am.prob||0}"></div>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
-    ${sec('t0',(()=>{const sp=s.separation||{};return `
-      <div class="g2c">
-        <div class="fld"><label>Name</label><input type="text" id="s_name" value="${esc(s.name)}"></div>
-        <div class="fld"><label>Redirect</label>${sel('s_redirect',REDIRECTS.map(x=>opt(x,x,o.redirect)).join(''))}</div>
-        <div class="fld"><label>Distribution (for <code>|||</code>)</label>${sel('s_dist',opt('random','random',o.distribution)+opt('rotator','rotator (cookie)',o.distribution)+opt('evenly','evenly',o.distribution))}</div>
-        <div class="fld"><label>Show chance, % (js)</label><input type="number" id="s_chance" value="${o.chance||100}"></div>
-      </div>
-      <div class="chk"><input type="checkbox" id="s_status" ${s.status?'checked':''}><label for="s_status">Stream active</label></div>
-      <div class="fld"><label>Out (separate variants with <code>|||</code>)</label><textarea id="s_out">${esc(o.out)}</textarea></div>
-      <div class="chk"><input type="checkbox" id="sep_en" ${sp.enabled?'checked':''}><label for="sep_en">Separation: replace output by keyword from .dat</label></div>
-      <div class="fld"><label>Separation file (in data dir, lines "key;output")</label><input type="text" id="sep_file" value="${esc(sp.file||'')}"></div>
-      <div class="fld"><label>CURL find/replace (for redirect=curl; lines "find|||replace", [KEY])</label><textarea id="s_curl">${esc(s.curl||'')}</textarea></div>`})())}
-    ${sec('t1',`
-      <div class="fld"><label>Computers</label>${sel('d_computer',opt(0,'any',r.computer)+opt(1,'block',r.computer))}</div>
-      <div class="fld"><label>Phones</label>${sel('d_phone',opt(0,'any',r.phone)+opt(1,'block',r.phone))}</div>
-      <div class="fld"><label>Tablets</label>${sel('d_tablet',opt(0,'any',r.tablet)+opt(1,'block',r.tablet))}</div>`)}
-    ${sec('t2',`
-      <p class="muted">Operators come from labels (#name) in wap.dat. Mode: block / require.</p>
-      <div id="ops">${Object.keys(ops).map(x=>oprow(x,ops[x])).join('')}</div>
-      <button id="addop" style="margin-top:6px">+ operator</button>`)}
-    ${sec('t3',`${flt('Countries (ISO, per line / comma-separated)','country',r)}${flt('Cities','city',r)}${flt('Regions (ISO)','region',r)}`)}
-    ${sec('t4',`${flt('Browser language','lang',r)}${flt('User-Agent (text or /regex/)','ua_text',r)}${flt('Referer','referer_text',r)}${flt('Domain','domain_text',r)}${flt('Keyword','key_text',r)}
-      <div class="flt"><div class="fld"><label>IP list (.dat name)</label><input type="text" id="f_iplist_file" value="${esc((r.ip_list||{}).file||'')}"></div><div class="fld"><label>mode</label>${flagSel('f_iplist_f',(r.ip_list||{}).flag||0)}</div></div>
-      <div class="fld"><label>Uniqueness</label>${sel('r_unique',opt(0,'any',r.unique)+opt(1,'unique only',r.unique)+opt(2,'repeat only',r.unique))}</div>
-      <div class="fld"><label>Yandex Browser</label>${sel('r_ya',opt(0,'any',r.yabrowser)+opt(1,'exclude',r.yabrowser)+opt(2,'Yandex Browser only',r.yabrowser))}</div>
-      <div class="fld"><label>Referer</label>${sel('r_ref',opt(0,'any',r.has_referer)+opt(1,'require present',r.has_referer)+opt(2,'require absent',r.has_referer))}</div>`)}
-    ${sec('t5',`${flt('OS (name or "name version": Android, Android 13, iOS 16)','os',r)}${flt('Browser (Chrome, Safari 16)','browser',r)}${flt('Device brand (Apple, Samsung, Xiaomi)','brand',r)}`)}
-    ${sec('t6',`
-      <div class="chk"><input type="checkbox" id="sch_en" ${(r.schedule&&r.schedule.enabled)?'checked':''}><label for="sch_en">Enable weekly schedule</label></div>
-      <div class="days">${DAYS.map((d,i)=>`<label><input type="checkbox" class="schd" data-d="${i}" ${(r.schedule&&r.schedule.days&&r.schedule.days[i])?'checked':''}>${d}</label>`).join('')}</div>`)}
-    ${sec('t7',`
-      <div class="chk"><input type="checkbox" id="lim_en" ${(r.limit&&r.limit.enabled)?'checked':''}><label for="lim_en">Enable impression limit</label></div>
-      <div class="g2c">
-        <div class="fld"><label>Type</label>${sel('lim_type',opt(1,'per day',(r.limit||{}).type)+opt(2,'per period',(r.limit||{}).type))}</div>
-        <div class="fld"><label>Limit, count</label><input type="number" id="lim_count" value="${(r.limit||{}).count||0}"></div>
-        <div class="fld"><label>Window (for "per period"), sec</label><input type="number" id="lim_sec" value="${(r.limit||{}).seconds||0}">
-          <div class="hint">0 falls back to 24 h on the engine — the counter always expires.</div></div>
-      </div>`)}
-    ${sec('t8',(()=>{const bt=s.bots||{};const bcb=(id,l)=>`<div class="chk"><input type="checkbox" id="b_${id}" ${bt[id]?'checked':''}><label for="b_${id}">${l}</label></div>`;return `
-      <div class="g2c">
-        <div class="fld"><label>Redirect for bots</label>${sel('b_redirect',opt('skip','(leave as is — normal stream)',bt.redirect)+REDIRECTS.map(x=>opt(x,x,bt.redirect)).join(''))}</div>
-        <div class="fld"><label>Content-Type for bots</label>${sel('b_header',HEADERS.map(x=>opt(x,x,bt.header)).join(''))}</div>
-      </div>
-      <div class="fld"><label>Out for bots (out_bot)</label><textarea id="b_out">${esc(bt.out||'')}</textarea></div>
-      <div class="fld"><label>CURL find/replace for bots (b_curl)</label><textarea id="b_curl">${esc(s.b_curl||'')}</textarea></div>
-      <h2 style="margin-top:6px">Bot signals</h2>
-      ${bcb('ch_ua','Check UA/referer signatures')}
-      ${bcb('ch_empty_ua','Empty User-Agent = bot')}
-      ${bcb('ch_empty_ref','Empty Referer = bot')}
-      ${bcb('ch_empty_lang','Empty language = bot')}
-      ${bcb('ch_ipv6','IPv6 = bot')}
-      ${bcb('ch_ptr','Check PTR (reverse DNS)')}
-      ${bcb('ch_list_ua','Check ua_blacklist.dat')}
-      <h2 style="margin-top:6px">Search-engine IP lists</h2>
-      <div class="g2c">
-        ${bcb('ch_bot_ip_baidu','Baidu')}${bcb('ch_bot_ip_bing','Bing')}
-        ${bcb('ch_bot_ip_google','Google')}${bcb('ch_bot_ip_mail','Mail.ru')}
-        ${bcb('ch_bot_ip_yahoo','Yahoo')}${bcb('ch_bot_ip_yandex','Yandex')}
-        ${bcb('ch_bot_ip_others','Others')}${bcb('save_ip','Append bot IP to list')}
-      </div>`})())}
-    ${sec('t9',(()=>{const rm=s.remote||{};return `
-      <div class="chk"><input type="checkbox" id="rm_en" ${rm.enabled?'checked':''}><label for="rm_en">Enable [REMOTE] fetch</label></div>
-      <div class="fld"><label>URL (substitutions [IP] [COUNTRY] [CITY] [LANG] [KEY])</label><textarea id="rm_url">${esc(rm.url||'')}</textarea></div>
-      <div class="fld"><label>Regexp (/.../ — first capture group; empty — whole response)</label><input type="text" id="rm_re" value="${esc(rm.regexp||'')}"></div>
-      <div class="fld"><label>Fallback output (on error/empty response)</label><textarea id="rm_res">${esc(rm.reserved||'')}</textarea></div>
-      <div class="fld"><label>Cache, sec</label><input type="number" id="rm_cache" value="${rm.cache||0}"></div>`})())}
-    ${sec('t10',(()=>{const am=s.api_mac||{};return `
-      <div class="chk"><input type="checkbox" id="am_en" ${am.enabled?'checked':''}><label for="am_en">Return mac code in API response</label></div>
-      <div class="fld"><label>Code (mac), supports macros</label><textarea id="am_code">${esc(am.code||'')}</textarea></div>
-      <div class="fld"><label>Probability, %</label><input type="number" id="am_prob" value="${am.prob||0}"></div>`})())}
-    <div class="note">Planned: <b>VirusTotal</b> (cron) and per-stream Header/Comment.</div>
     </div>`;
-  qa('#ftabs button').forEach(b=>b.onclick=()=>{
-    qa('#ftabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-    qa('#gpane .sec').forEach(x=>x.classList.toggle('active',x.dataset.sec===b.dataset.sec));
-    q('#gpane').scrollTop=0;
-  });
-  q('#gpane .sec').classList.add('active');
+  bindSave();
   q('#toparent').onclick=()=>{commit();SEL.s=-1;renderTree();renderPane()};
+  q('#s_status').onchange=e=>{q('#s_status_l').textContent=e.target.checked?'enabled':'disabled'};
+  q('#s_name').oninput=()=>{const s2=curStream();if(s2){s2.name=q('#s_name').value.trim();renderTree()}};
   q('#dels').onclick=()=>{
     if(!confirm('Delete stream "'+(s.name||'')+'"?'))return;
     g.streams.splice(SEL.s,1); SEL.s=-1; markDirty(); renderTree(); renderPane();
@@ -840,39 +1185,77 @@ function streamForm(){
   };
   q('#up').onclick=()=>move(-1);
   q('#down').onclick=()=>move(1);
+  // add / remove conditions: the model is the source of truth, so commit the
+  // form first, change the model, and render the form again.
+  const menu=q('#addmenu');
+  q('#addcond').onclick=e=>{e.stopPropagation();menu.hidden=!menu.hidden};
+  menu.onclick=e=>e.stopPropagation();
+  menu.querySelectorAll('[data-addcond]').forEach(b=>b.onclick=()=>{
+    commit(); COND_OPEN.add(b.dataset.addcond); markDirty(); streamForm();
+    const row=q(`.crow[data-cond="${b.dataset.addcond}"]`); const f=row&&row.querySelector('input[type=text],select,input[type=number]'); if(f)f.focus({preventScroll:true});
+  });
+  qa('#conds [data-rm]').forEach(b=>b.onclick=()=>{
+    commit(); resetCond(curStream().rules,b.dataset.rm); COND_OPEN.delete(b.dataset.rm); markDirty(); streamForm();
+  });
   const addop=q('#addop'); if(addop)addop.onclick=()=>{q('#ops').insertAdjacentHTML('beforeend',oprow('',1));bindOpDel();markDirty()};
   bindOpDel();
-  const nm=q('#s_name'); if(nm)nm.focus({preventScroll:true});
 }
-function oprow(name,flag){return `<div class="oprow"><input type="text" class="op-n" placeholder="name (as in wap.dat)" value="${esc(name)}">${sel('',opt(0,'any',flag)+opt(1,'block',flag)+opt(2,'require',flag)).replace('<select','<select class="op-f"')}<button class="op-x danger">✕</button></div>`}
+function condRow(c,r){
+  let body='';
+  switch(c.kind){
+    case 'list':{const v=lf(r,c.k);body=`${sel('f_'+c.k+'_f',opt(2,'include',v.flag||2)+opt(1,'exclude',v.flag||2))}<input type="text" class="grow" id="f_${c.k}_v" value="${esc(v.vals||v.raw)}" placeholder="${esc(c.ph||'')}">${c.hint?`<div class="hint">${c.hint}</div>`:''}`;break}
+    case 'device':body=['computer','phone','tablet'].map(d=>`<label class="chipck dev"><input type="checkbox" id="d_${d}" ${r[d]?'':'checked'}><span>${d}s</span></label>`).join('')+'<div class="hint">checked = allowed</div>';break;
+    case 'ops':{const ops=r.operators||{};body=`<div id="ops" style="width:100%">${Object.keys(ops).map(x=>oprow(x,ops[x])).join('')}</div><button class="sm" id="addop">${icon('plus')} operator</button><div class="hint">names come from labels (#name) in wap.dat</div>`;break}
+    case 'tri':body=sel('r_'+c.k,c.opts.map((l,i)=>opt(i,l,r[c.k]||0)).join(''));break;
+    case 'iplist':{const f=r.ip_list||{};body=`${sel('f_iplist_f',opt(2,'include',f.flag||2)+opt(1,'exclude',f.flag||2))}<input type="text" class="grow" id="f_iplist_file" value="${esc(f.file||'')}" placeholder="name.dat in the data directory">`;break}
+    case 'schedule':{const d=(r.schedule&&r.schedule.days)||[];body=`<div class="days">${DAYS.map((n,i)=>`<label><input type="checkbox" class="schd" data-d="${i}" ${d[i]?'checked':''}>${n}</label>`).join('')}</div><div class="hint">the stream works only on the checked days</div>`;break}
+    case 'limit':{const l=r.limit||{};body=`${sel('lim_type',opt(1,'per day',l.type||1)+opt(2,'per period',l.type))}<input type="number" id="lim_count" value="${l.count||0}" placeholder="count" style="width:110px"><input type="number" id="lim_sec" value="${l.seconds||0}" placeholder="seconds" style="width:110px"><div class="hint">count, then the window in seconds for "per period" (0 = 24 h); "per day" resets at UTC midnight</div>`;break}
+  }
+  return `<div class="crow" data-cond="${c.k}"><div class="cl">${c.l}</div><button class="iconbtn xs cx" data-rm="${c.k}" title="Remove condition">${icon('x')}</button><div class="cv">${body}</div></div>`;
+}
+function resetCond(r,k){
+  const c=COND.find(x=>x.k===k); if(!c||!r)return;
+  switch(c.kind){
+    case 'list':r[k]={flag:0,values:[],raw:''};break;
+    case 'device':r.computer=0;r.phone=0;r.tablet=0;break;
+    case 'ops':r.operators={};break;
+    case 'tri':r[k]=0;break;
+    case 'iplist':r.ip_list={flag:0,file:''};break;
+    case 'schedule':r.schedule={enabled:false,days:[false,false,false,false,false,false,false]};break;
+    case 'limit':r.limit={enabled:false,type:1,count:0,seconds:0};break;
+  }
+}
+function oprow(name,flag){return `<div class="oprow"><input type="text" class="op-n" placeholder="name (as in wap.dat)" value="${esc(name)}">${sel('',opt(1,'block',flag)+opt(2,'require',flag)).replace('<select id=""','<select class="op-f"')}<button class="op-x iconbtn" title="Remove">${icon('x')}</button></div>`}
 function bindOpDel(){qa('.op-x').forEach(b=>b.onclick=()=>{b.closest('.oprow').remove();markDirty()})}
 
 function addStream(){
   const g=curGroup(); if(!g)return;
   g.streams=g.streams||[];
-  g.streams.push({name:'stream'+((g.streams.length||0)+1),status:true,rules:{},out:{redirect:'http_redirect',out:'',chance:100}});
-  SEL.s=g.streams.length-1; markDirty(); renderTree(); renderPane();
+  g.streams.push({name:'stream'+((g.streams.length||0)+1),status:true,rules:{},out:{redirect:'http_redirect',out:'',chance:100,distribution:'random'},bots:{redirect:'skip',header:'text/html'}});
+  SEL.s=g.streams.length-1; COND_OPEN=new Set(); markDirty(); renderTree(); renderPane();
+  const nm=q('#s_name'); if(nm){nm.focus({preventScroll:true});nm.select()}
 }
 function newGroup(){
   commit();
   GROUPS.push({id:'group'+(GROUPS.length+1),name:'',status:true,redirect:'stop',header:'text/html',out:'',geo:'cf',
     uniq_method:'ip',uniq_seconds:86400,firewall:{enabled:false,queries:100,seconds:60},streams:[]});
-  SEL={g:GROUPS.length-1,s:-1}; EXPANDED.add(SEL.g); TREEQ=''; markDirty(); renderTree(); renderPane();
-  const id=q('#g_id'); if(id){id.focus();id.select()}
+  SEL={g:GROUPS.length-1,s:-1}; EXPANDED.add(SEL.g); TREEQ=''; GSET=true; markDirty(); renderTree(); renderPane();
+  const id=q('#g_id'); if(id){id.focus({preventScroll:true});id.select()}
 }
 function delGroup(){
   const g=curGroup(); if(!g)return;
   if(!confirm('Delete group "'+(g.id||'')+'" with all its streams?'))return;
   GROUPS.splice(SEL.g,1);
-  SEL={g:GROUPS.length?0:-1,s:-1}; EXPANDED=new Set(SEL.g>=0?[SEL.g]:[]);
+  SEL={g:GROUPS.length?0:-1,s:-1}; EXPANDED=new Set(SEL.g>=0?[SEL.g]:[]); GSET=false;
   markDirty(); renderTree(); renderPane();
 }
 
 /* ---------- model <- forms ---------- */
 function readLF(key){
   const t=q('#f_'+key+'_v'), f=q('#f_'+key+'_f');
-  if(!t)return null;
+  if(!t)return{flag:0,values:[],raw:''};
   const raw=t.value.trim();
+  if(!raw)return{flag:0,values:[],raw:''};   // an empty list is no filter at all
   // A /regex/ is a single value: splitting on commas would tear apart patterns
   // like /a{2,3}/ and the router would then compile something else entirely.
   if(raw.startsWith('/'))return{flag:+f.value,values:[raw],raw};
@@ -881,35 +1264,35 @@ function readLF(key){
 }
 function collectStream(){
   const s=curStream(); if(!s||!q('#s_name'))return;
-  const v=id=>q('#'+id);
+  const v=id=>q('#'+id), has=k=>!!q(`.crow[data-cond="${k}"]`);
   s.name=v('s_name').value.trim();
   s.status=v('s_status').checked;
   s.out={redirect:v('s_redirect').value,out:v('s_out').value,chance:+v('s_chance').value||0,distribution:v('s_dist').value};
   s.separation={enabled:v('sep_en').checked,file:v('sep_file').value.trim()};
   const r={};
-  ['country','city','region','lang','ua_text','referer_text','domain_text','key_text','os','browser','brand'].forEach(k=>{const x=readLF(k);if(x)r[k]=x});
-  r.ip_list={flag:+v('f_iplist_f').value,file:v('f_iplist_file').value.trim()};
-  r.computer=+v('d_computer').value; r.phone=+v('d_phone').value; r.tablet=+v('d_tablet').value;
-  r.unique=+v('r_unique').value; r.yabrowser=+v('r_ya').value; r.has_referer=+v('r_ref').value;
-  const ops={};qa('#ops .oprow').forEach(row=>{const n=row.querySelector('.op-n').value.trim();if(n)ops[n]=+row.querySelector('.op-f').value});
+  LISTKEYS.forEach(k=>{r[k]=has(k)?readLF(k):{flag:0,values:[],raw:''}});
+  r.ip_list=has('ip_list')&&v('f_iplist_file').value.trim()?{flag:+v('f_iplist_f').value,file:v('f_iplist_file').value.trim()}:{flag:0,file:''};
+  if(has('device')){r.computer=v('d_computer').checked?0:1;r.phone=v('d_phone').checked?0:1;r.tablet=v('d_tablet').checked?0:1}
+  else{r.computer=0;r.phone=0;r.tablet=0}
+  r.unique=has('unique')?+v('r_unique').value:0;
+  r.yabrowser=has('yabrowser')?+v('r_yabrowser').value:0;
+  r.has_referer=has('has_referer')?+v('r_has_referer').value:0;
+  const ops={}; if(has('operators'))qa('#ops .oprow').forEach(row=>{const n=row.querySelector('.op-n').value.trim();if(n)ops[n]=+row.querySelector('.op-f').value});
   r.operators=ops;
-  const days=[false,false,false,false,false,false,false];qa('.schd').forEach(c=>days[+c.dataset.d]=c.checked);
-  r.schedule={enabled:v('sch_en').checked,days};
-  r.limit={enabled:v('lim_en').checked,type:+v('lim_type').value,count:+v('lim_count').value||0,seconds:+v('lim_sec').value||0};
+  const days=[false,false,false,false,false,false,false]; if(has('schedule'))qa('.schd').forEach(c=>days[+c.dataset.d]=c.checked);
+  r.schedule={enabled:has('schedule'),days};
+  r.limit=has('limit')?{enabled:true,type:+v('lim_type').value,count:+v('lim_count').value||0,seconds:+v('lim_sec').value||0}:{enabled:false,type:1,count:0,seconds:0};
   s.rules=r;
   const bchk=id=>{const e=q('#b_'+id);return e?e.checked:false};
-  s.bots={
-    ch_ua:bchk('ch_ua'),ch_empty_ua:bchk('ch_empty_ua'),ch_empty_ref:bchk('ch_empty_ref'),
-    ch_empty_lang:bchk('ch_empty_lang'),ch_ipv6:bchk('ch_ipv6'),ch_ptr:bchk('ch_ptr'),ch_list_ua:bchk('ch_list_ua'),
-    ch_bot_ip_baidu:bchk('ch_bot_ip_baidu'),ch_bot_ip_bing:bchk('ch_bot_ip_bing'),ch_bot_ip_google:bchk('ch_bot_ip_google'),
-    ch_bot_ip_mail:bchk('ch_bot_ip_mail'),ch_bot_ip_yahoo:bchk('ch_bot_ip_yahoo'),ch_bot_ip_yandex:bchk('ch_bot_ip_yandex'),
-    ch_bot_ip_others:bchk('ch_bot_ip_others'),save_ip:bchk('save_ip'),
-    redirect:v('b_redirect').value,header:v('b_header').value,out:v('b_out').value
-  };
+  const bots={};
+  BOTCHK.forEach(([id])=>bots[id]=bchk(id));
+  bots.save_ip=bchk('save_ip');
+  bots.redirect=v('b_redirect').value; bots.header=v('b_header').value; bots.out=v('b_out').value;
+  s.bots=bots;
   const gv=id=>{const e=q('#'+id);return e?e.value:''};
   s.curl=gv('s_curl'); s.b_curl=gv('b_curl');
-  s.remote={enabled:bchk('rm_en'),url:gv('rm_url'),regexp:gv('rm_re'),reserved:gv('rm_res'),cache:+gv('rm_cache')||0};
-  s.api_mac={enabled:bchk('am_en'),code:gv('am_code'),prob:+gv('am_prob')||0};
+  s.remote={enabled:!!(q('#rm_en')&&q('#rm_en').checked),url:gv('rm_url'),regexp:gv('rm_re'),reserved:gv('rm_res'),cache:+gv('rm_cache')||0};
+  s.api_mac={enabled:!!(q('#am_en')&&q('#am_en').checked),code:gv('am_code'),prob:+gv('am_prob')||0};
 }
 function collectGroup(){
   const g=curGroup(); if(!g||!q('#g_id'))return;
@@ -919,6 +1302,7 @@ function collectGroup(){
   g.geo=v('g_geo').value; g.redirect=v('g_redirect').value; g.header=v('g_header').value;
   g.uniq_method=v('g_uniq').value; g.uniq_seconds=+v('g_uniqsec').value||86400; g.out=v('g_out').value;
   g.status=v('g_status').checked;
+  g.save_keys=v('g_savekeys').checked; g.save_keys_se=v('g_savekeys_se').checked;
   g.firewall={enabled:v('fw_en').checked,queries:+v('fw_q').value||0,seconds:+v('fw_s').value||0};
 }
 // Exactly one form is mounted, so both collectors run and the one that is not
@@ -927,7 +1311,7 @@ function commit(){collectStream();collectGroup()}
 
 async function saveAll(){
   commit();
-  const msg=q('#gmsg');
+  const msg=q('#gmsg')||{};
   const ids=GROUPS.map(g=>(g.id||'').trim());
   const dup=ids.find((x,i)=>x&&ids.indexOf(x)!==i);
   if(ids.some(x=>!x)){msg.innerHTML='<span class="err">every group needs an ID</span>';return}
@@ -935,8 +1319,9 @@ async function saveAll(){
   msg.textContent='saving…';
   const r=await api('/api/groups',{method:'PUT',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify(GROUPS)});
   const j=await r.json().catch(()=>({}));
-  if(r.ok){clearDirty();msg.innerHTML='<span class="ok">saved ✓</span>';renderTree()}
-  else msg.innerHTML='<span class="err">'+esc(j.error||'error')+'</span>';
+  const m=q('#gmsg'); if(!m)return;
+  if(r.ok){clearDirty();m.innerHTML='<span class="ok">saved ✓</span>';renderTree();setTimeout(()=>{if(m.isConnected&&!DIRTY)m.innerHTML=''},2500)}
+  else m.innerHTML='<span class="err">'+esc(j.error||'error')+'</span>';
 }
 
 /* ---------- LISTS (.dat) ---------- */
@@ -944,12 +1329,12 @@ async function lists(){
   view().innerHTML=stateHTML('loading…');
   const names=await api('/api/lists').then(r=>r.json()).catch(()=>[]);
   view().innerHTML=`
-    <div class="row">
+    <div class="row" style="margin-bottom:12px">
       <select id="lname">${(names||[]).map(n=>`<option>${esc(n)}</option>`).join('')}</select>
       <div class="spacer"></div><span id="lmsg" class="muted"></span><button class="primary" id="lsave">Save</button>
     </div>
     <textarea id="ldata" spellcheck="false" class="code muted">select a list…</textarea>
-    <p class="muted">Lists: bot IP bases (ip_*.dat), WAP operators (wap.dat — lines with # set the operator name), signatures (signature_*.dat), blacklists. Operator count and names are edited here too.</p>`;
+    <p class="muted">Lists: bot IP bases (ip_*.dat), WAP operators (wap.dat — lines with # set the operator name), signatures (signature_*.dat), blacklists. The engine picks up changes on its reload interval.</p>`;
   const s=q('#lname');
   s.onchange=()=>loadList(s.value);
   q('#lsave').onclick=saveList;
@@ -969,12 +1354,14 @@ async function saveList(){
 }
 
 function render(node){const a=q('#app');a.innerHTML='';a.appendChild(node)}
-// close open filter dropdowns on outside click
-document.addEventListener('click',()=>qa('.msel.open').forEach(m=>m.classList.remove('open')));
+// close open dropdowns on outside click
+document.addEventListener('click',()=>{qa('.msel.open').forEach(m=>m.classList.remove('open'));const am=q('#addmenu');if(am)am.hidden=true});
 // Ctrl/Cmd+S saves the groups editor instead of the browser's "save page".
 document.addEventListener('keydown',e=>{
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'&&TAB==='groups'){e.preventDefault();saveAll()}
 });
+// Follow the OS theme while the user has not chosen one explicitly.
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(!document.documentElement.getAttribute('data-theme')){syncTheme();if(TAB==='dashboard')drawChart(q('#chart'),CH.pts)}});
 // Last line of defence against losing edits by closing the tab.
 window.addEventListener('beforeunload',e=>{if(DIRTY){e.preventDefault();e.returnValue=''}});
 boot();

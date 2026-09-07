@@ -107,34 +107,73 @@ it routes. An unknown first segment falls through to the trash mode.
 ## Admin web interface
 
 Shell: **left sidebar** (icon navigation), **top bar on the right** (period
-picker, Settings gear, user chip, log-out button). Light theme in the GitHub (Primer) style.
+picker, theme toggle, Settings gear, user chip, log-out button). GitHub (Primer)
+style, **light and dark**: the sun/moon button switches and remembers the
+choice in the browser (`localStorage`); until a choice is made the panel follows
+`prefers-color-scheme`.
 
-Sections: **Dashboard** (filled chart + breakdowns by country/device/OS/
-browser/brand/group/source), **Logs** (filters as **dropdown lists with
+Sections: **Dashboard** (six KPI tiles — visits, unique, bots, conversions,
+profit, CR; a time chart with a hover tooltip, total as an area, unique dashed,
+bots in orange; the **performance table** by group → stream: hits / unique /
+bots / conversions / profit / CR from `GET /api/stats/performance`, sortable by
+any column, CSV export, a "no match → group default" line per group, groups
+that exist only in the data are marked "not in config"; breakdowns by
+country/device/OS/browser/source), **Logs** (filters as **dropdown lists with
 checkboxes**: group/stream/country/device/OS/browser/brand — values are loaded
 from data for the period via `GET /api/logs/filters`, multiple can be checked →
 SQL `IN`; plus in-list search, IP field, humans/bots type, pagination, CSV
-export), **Conversions**, **Keywords** (view collected keywords), **Groups**
-(master–detail editor: group→stream tree + one form pane), **Lists** (`.dat` editor,
-incl. WAP operators). Settings (password change) — via the gear on the right.
+export), **Conversions** (group picker, total and count), **Keywords** (view collected
+keywords), **Groups** (tree + waterfall / stream editor, below), **Lists**
+(`.dat` editor, incl. WAP operators). Settings (password change, theme) — via
+the gear on the right.
 
-Groups — a **master–detail** editor. On the left, a collapsible group→stream
-tree (chevron per group) with a search box over group and stream names. On the
-right, a pane showing **exactly one form**: the group's, or the selected
-stream's. Both panes scroll inside themselves and the page does not scroll, so
-the form you pick always opens in the same place.
+### Groups
 
-Clicking a group opens the group form (settings, anti-flood, an overview table
-of its streams, and the links the engine serves). Clicking a stream — in the
-tree, or via "edit →" in that table — replaces the pane with the stream form;
-the back link in its header returns to the group.
+On the left, a collapsible group→stream tree (chevron per group) with a search
+box over group and stream names; every group and stream shows its hits for the
+selected period. On the right, a pane with **exactly one thing**: the group's
+waterfall or one stream's editor. Both panes scroll inside themselves and the
+page does not scroll, so what you pick always opens in the same place.
 
-Stream form tabs: Main · Devices · WAP · Geo · Filters · UA/OS/Brand · Schedule ·
-Limit · Bots · Remote · API.
+**The group's waterfall.** Streams are the routing logic, so the group page is
+the list of them in the order the engine tries them — one row per stream:
+the number and a drag handle, the on/off switch, the name, the conditions as
+chips (`country ∈ ru`, `device phone`, `limit 50 / day`…; "any visitor" when
+there are none), an arrow to the output (redirect type + the first line of
+`out`) with what bots get underneath (`bots → 404_not_found` or `bots → same`),
+and hits / bots / conversions for the period. The last, muted row is **no
+match** — the group's default output — with its own numbers, so you can see how
+much traffic falls through. Drag a row to reorder (or use ↑/↓ in the stream
+editor), click it to edit, flip the switch to disable it in place. The header
+carries the live link with a copy button and the group's totals; **+ Stream**
+adds a stream and opens it; **Settings** folds the group form out above the
+waterfall: ID / name / aliases, active, default output (redirect type,
+Content-Type, out with macros), geo source, uniqueness method and window, save
+keywords / from search engines, anti-flood, the links the engine serves, and
+the danger zone (clear logged visits, delete group).
 
-Edits live in the browser until **Save all** (`Ctrl`/`Cmd`+`S` also works). An
-"unsaved changes" marker appears next to the button, and leaving the section or
-closing the tab asks for confirmation first. Empty and duplicate group IDs are
+**The stream editor.** The header holds the name, the enabled switch, ↑/↓ and
+Delete; the back link returns to the group. Two columns:
+
+- **When — conditions.** Only the conditions this stream actually carries are
+  shown, each with a ✕ to drop it; **Add condition** offers the rest, grouped:
+  *Geo* country / city / region; *Device* device type (computers / phones /
+  tablets as allow-chips), brand, WAP operator; *Browser / OS* OS, browser,
+  Yandex Browser; *Text* User-Agent, Referer, Domain, Keyword, Language;
+  *Other* IP list, unique, referer present, schedule, impression limit. List
+  conditions are `include` / `exclude` plus comma-separated values (a single
+  `/regex/` is kept whole); an empty value means no filter.
+- **Then — output.** Redirect type, distribution (for `|||` variants), out with
+  the macro list. **Bots**: the detection signals as toggle chips, what to serve
+  bots (same as humans, or any redirect type), Content-Type and out for bots,
+  append detected bot IPs to the list. **Advanced** (folded unless something in
+  it is set): show chance, separation file, `[REMOTE]` fetch, CURL find/replace
+  for humans and bots, API mac code.
+
+Edits live in the browser until **Save** (`Ctrl`/`Cmd`+`S` also works). An
+"unsaved" marker appears in the pane header, and leaving the section or closing
+the tab asks for confirmation first; changing the period while there are
+unsaved edits only refreshes the numbers. Empty and duplicate group IDs are
 caught before the request is sent.
 
 The UI is a single embedded file (`internal/admin/web/index.html`, `go:embed`).

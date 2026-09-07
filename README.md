@@ -122,12 +122,14 @@ not like a script.**
 - Login rate-limit (Redis, fixed window per IP).
 
 **Analytics & admin:**
-- Dashboard with a time chart and breakdowns (country/device/OS/browser/brand/
-  group/source).
+- Dashboard: KPI tiles (visits, unique, bots, conversions, profit, CR), a time
+  chart, a **performance table by group and stream** (hits / unique / bots /
+  conversions / profit / CR, sortable, CSV) and breakdowns (country/device/OS/
+  browser/source).
 - Logs with multi-select filters loaded from real data, IP search, CSV export,
   and country flags.
 - Conversions (postbacks), collected keywords, group/stream editor, `.dat`
-  list editor, password change.
+  list editor, password change. Light and dark theme.
 
 ---
 
@@ -138,16 +140,29 @@ period), in-list search, country flags, CSV export, pagination:
 
 ![Logs](docs/img/logs.png)
 
-**Groups & streams** — master–detail editor. Selecting a stream in the tree
-swaps the right pane in place; both panes scroll on their own, so the page never
-moves and the form always opens at the same spot:
+**Groups** — a group is a waterfall of streams, tried top to bottom. Each row
+reads as a rule: the switch, the conditions (chips), the output, what bots get,
+and the period's hits / bots / conversions. Drag a row to reorder, click it to
+edit; the last row is what happens when nothing matches:
 
-![Stream editor](docs/img/groups.png)
+![Groups](docs/img/groups.png)
 
-Selecting the group itself shows the group form — settings, anti-flood, an
-overview of its streams and the live links the engine serves:
+**Stream editor** — WHEN on the left (only the conditions this stream actually
+uses; "Add condition" offers the other ones), THEN on the right (output, bots),
+the rarely used parts folded into Advanced:
 
-![Group form](docs/img/group-form.png)
+![Stream editor](docs/img/stream.png)
+
+**Group settings** open above the waterfall on demand — ID and aliases, the
+default output, uniqueness, keyword collection, anti-flood, the live links the
+engine serves, and the danger zone:
+
+![Group settings](docs/img/group-form.png)
+
+**Dark theme** — the sun/moon button in the top bar; the choice is remembered
+per browser, and until you choose, the panel follows the system setting:
+
+![Dashboard, dark theme](docs/img/dashboard-dark.png)
 
 ---
 
@@ -519,23 +534,36 @@ the result (redirect or content).
 
 ## Admin web interface
 
-A single embedded SPA (light GitHub-style theme, English UI). Layout: **left sidebar**
-navigation, **top-right** period picker, settings gear, user, and log-out.
+A single embedded SPA (GitHub-style theme, light and dark, English UI). Layout:
+**left sidebar** navigation, **top-right** period picker, theme toggle, settings
+gear, user, and log-out.
 
-- **Dashboard** — visits / unique / bots cards, a time chart, and breakdowns by
-  country, device, OS, browser, brand, group and source.
+- **Dashboard** — six KPI tiles (visits, unique, bots, conversions, profit, CR),
+  a time chart with hover values, a **performance table** by group and stream
+  (hits / unique / bots / conversions / profit / CR, sortable, CSV export, the
+  "no match → group default" line per group), and breakdowns by country,
+  device, OS, browser and source.
 - **Logs** — multi-select filters (group/stream/country/device/OS/browser/brand)
   whose values are loaded from the data for the selected period, in-list search,
   IP field, humans/bots toggle, country flags, pagination, CSV export.
 - **Conversions** — postbacks and total profit for a period.
 - **Keywords** — collected keywords per group/date.
-- **Groups** — a master–detail editor: collapsible group→stream tree with search
-  on the left, and a pane on the right holding exactly one form — the group's, or
-  a stream's with tabs (Main · Devices · WAP · Geo · Filters · UA/OS/Brand ·
-  Schedule · Limit · Bots · Remote · API). Both panes scroll internally, so
-  picking a stream never moves the page. Unsaved-changes marker and `Ctrl`+`S`.
+- **Groups** — a collapsible group→stream tree with search on the left (hits
+  per group and stream for the period), and a pane on the right that shows
+  either the group's **waterfall** — one row per stream in matching order:
+  on/off switch, condition chips, output, what bots get, hits / bots /
+  conversions; drag to reorder, click to edit; a "no match" row for the group
+  default; group settings fold out above it — or one stream's editor: **When**
+  (only the configured conditions, "Add condition" for the rest; 19 kinds:
+  geo, device, brand, WAP operator, OS, browser, Yandex Browser, UA / referer /
+  domain / keyword / language text, IP list, unique, referer present, schedule,
+  impression limit) and **Then** (redirect type, distribution, out), **Bots**
+  (signal chips, what to serve them) and a folded **Advanced** (show chance,
+  separation, `[REMOTE]`, CURL find/replace, API mac). Both panes scroll
+  internally, so picking a stream never moves the page. Unsaved-changes
+  marker, `Ctrl`+`S`, leave/close guards.
 - **Lists** — editor for `.dat` files (IP bases, WAP operators, signatures).
-- **Settings** (gear) — change the admin password.
+- **Settings** (gear) — change the admin password, switch the theme.
 
 ---
 
@@ -555,7 +583,7 @@ navigation, **top-right** period picker, settings gear, user, and log-out.
 **Admin API** (`GET /api/health` is open; the rest is session + CSRF protected):
 `POST /api/login`, `POST /api/logout`,
 `GET /api/me`, `POST /api/password`, `GET /api/stats/{summary,timeseries,
-breakdown}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/logs/export`,
+breakdown,performance}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/logs/export`,
 `DELETE /api/logs`, `GET /api/postbacks`, `GET /api/keys`,
 `GET|PUT /api/groups`, `GET /api/lists`, `GET|PUT /api/lists/{name}`.
 

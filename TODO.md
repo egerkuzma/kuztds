@@ -12,9 +12,9 @@
 ## Minor / optional
 - [ ] extra tests for the cmd/admin main() wiring (currently 0%; logic covered in internal/admin)
 - [ ] captcha / TOTP (Google Authenticator) for admin login
-- [ ] drag-and-drop stream reordering with the mouse (currently ↑/↓ buttons)
 - [ ] apiset UI for the api client (currently config via env)
 - [ ] per-stream Header/Comment in the stream form
+- [ ] per-stream time series for the dashboard table (a sparkline per row)
 - [ ] uniq_time in hours in the UI (currently in seconds)
 
 ## Possible future features

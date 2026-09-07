@@ -35,6 +35,7 @@ type StatsProvider interface {
 	Summary(ctx context.Context, from, to time.Time) (store.StatsSummary, error)
 	TimeSeries(ctx context.Context, from, to time.Time, stepSec int) ([]store.TSPoint, error)
 	Breakdown(ctx context.Context, from, to time.Time, dim string, limit int) ([]store.KV, error)
+	Performance(ctx context.Context, from, to time.Time) ([]store.PerfRow, error)
 	Logs(ctx context.Context, f store.LogFilter) ([]store.LogRow, int64, error)
 	Postbacks(ctx context.Context, from, to time.Time, group string, limit int) ([]store.PostbackRow, float64, error)
 	DeleteGroupLogs(ctx context.Context, group string) error
@@ -230,6 +231,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/stats/summary", s.auth(http.HandlerFunc(s.handleSummary)))
 	mux.Handle("GET /api/stats/timeseries", s.auth(http.HandlerFunc(s.handleTimeSeries)))
 	mux.Handle("GET /api/stats/breakdown", s.auth(http.HandlerFunc(s.handleBreakdown)))
+	mux.Handle("GET /api/stats/performance", s.auth(http.HandlerFunc(s.handlePerformance)))
 	mux.Handle("GET /api/logs", s.auth(http.HandlerFunc(s.handleLogs)))
 	mux.Handle("GET /api/logs/filters", s.auth(http.HandlerFunc(s.handleLogFilters)))
 	mux.Handle("GET /api/logs/export", s.auth(http.HandlerFunc(s.handleLogsExport)))
@@ -497,6 +499,26 @@ func (s *Server) handleBreakdown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, kv)
+}
+
+// handlePerformance — hits/unique/bots/conversions/profit per group and
+// stream over the period: the dashboard table and the numbers on the stream
+// rows of the groups editor.
+func (s *Server) handlePerformance(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Stats == nil {
+		writeErr(w, http.StatusServiceUnavailable, "stats unavailable")
+		return
+	}
+	from, to := parseRange(r)
+	rows, err := s.cfg.Stats.Performance(r.Context(), from, to)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "stats error")
+		return
+	}
+	if rows == nil {
+		rows = []store.PerfRow{}
+	}
+	writeJSON(w, http.StatusOK, rows)
 }
 
 func (s *Server) logFilter(r *http.Request) store.LogFilter {

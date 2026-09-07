@@ -2,7 +2,7 @@
 
 # STATUS — where we are and how to continue
 
-Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
+Snapshot as of 2026-09-08. For details: `docs/USAGE.md`, `TODO.md`.
 
 ## Done (in `main`, tests green)
 - **Phases 1–7**: ipindex (+hot-reload), realip, geo (mmdb/Nop) + detect
@@ -17,16 +17,28 @@ Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
 - **Block 6** — api client (`cmd/apiclient`) + `?api=` handling in the engine.
 - **Block 7** — CSV log export, sources (domains), per-group log cleanup,
   stream reordering ↑/↓.
-- **UI (rebuilt 2026-08-20)**: left sidebar navigation, top bar on the right
-  (period, Settings gear, user, log out), light GitHub-style theme (2026-09-08; was dark). Groups is a **master–detail**
-  editor: collapsible tree with search on the left, and a pane on the right that
-  holds exactly one form — the group's or a stream's. Both panes scroll
-  internally, so selecting a stream never moves the page (the previous layout
-  stacked the stream card under the group form and chased it with
-  `scrollIntoView`). Unsaved-changes marker, leave/close guards, `Ctrl`/`Cmd`+`S`,
-  streams overview table with direct edit, ↑/↓ disabled at the ends.
-  Covered by tests (`web_test.go` + `-tags=uitest` for JS), including a guard
-  that a real `.scrollIntoView(` call does not come back.
+- **UI (redesigned 2026-09-08)**: GitHub (Primer) style in **light and dark**
+  (toggle in the top bar, remembered in the browser, system preference until
+  chosen). **Dashboard** answers "what works": KPI tiles incl. conversions /
+  profit / CR, a two-hue chart with hover, and a **performance table by group
+  and stream** (new `GET /api/stats/performance`: events and postbacks
+  aggregated per group/stream in the store, merged in Go). **Groups** shows a
+  group as a **waterfall** of streams in matching order — one rule per row
+  (switch, condition chips, output, bots, hits / bots / conversions), drag to
+  reorder, a "no match → group default" row with its own numbers, group
+  settings folded out on demand. The **stream editor** is WHEN → THEN:
+  only the configured conditions are shown, the other 19 kinds sit behind
+  "Add condition"; bots as toggle chips; the rare parts (chance, separation,
+  `[REMOTE]`, CURL, API mac) folded into Advanced. The earlier master–detail
+  invariants stay: one pane, both sides scroll internally, no
+  `scrollIntoView`, unsaved marker, leave/close guards, `Ctrl`/`Cmd`+`S`.
+  Also exposed: `save_keys` / `save_keys_se` in the group settings (the
+  previous form did not carry them, so every save reset both to false).
+  Tests: `web_test.go` anchors + `-tags=uitest`; the integration test now
+  covers `Performance` and `DeleteGroupLogs`.
+- **Fix (2026-09-08)**: "Clear logs" deleted by `group_name` while the panel
+  sent the group's **ID** — with a display name set, nothing was deleted.
+  `DeleteGroupLogs` keys on `group_id` now (`clickhouse.go`).
 - **Fix**: country/lang/text filters also work when only `values` is set (no
   `raw`) — `router.go: cfgd()/orJoin()`.
 - **Fix (found by e2e tests, 2026-06-07):**

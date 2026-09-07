@@ -55,14 +55,32 @@ func TestSPAStructure(t *testing.T) {
 	must(t, html, `class="userchip"`, "user chip")
 	must(t, html, `id="out"`, "logout button")
 
-	// Groups: collapsible tree (chevron) on the left, one detail pane on the right.
+	// Light/dark theme: a toggle in the top bar, tokens for both, the system
+	// preference honoured until the user picks one.
+	must(t, html, `id="theme"`, "theme toggle")
+	must(t, html, `:root[data-theme="dark"]`, "dark theme tokens")
+	must(t, html, `prefers-color-scheme: dark`, "system theme preference")
+	must(t, html, `localStorage.getItem('kuztds-theme')`, "remembered theme")
+
+	// Dashboard: the performance table by group and stream.
+	must(t, html, `/api/stats/performance`, "performance request")
+	must(t, html, `class="perft"`, "performance table")
+
+	// Groups: collapsible tree (chevron) on the left, one detail pane on the right:
+	// the group's waterfall of streams or one stream's WHEN → THEN editor.
 	must(t, html, `class="glist"`, "group tree")
 	must(t, html, `class="chev`, "group collapse chevron")
 	must(t, html, `class="snode`, "stream node in the tree")
 	must(t, html, `id="gpane"`, "detail pane")
+	must(t, html, `class="wf"`, "waterfall of streams")
+	must(t, html, `draggable="true"`, "drag-to-reorder rows")
+	must(t, html, `data-toggle-s=`, "per-row enable switch")
 	must(t, html, `streamcard`, "stream card")
 	must(t, html, `class="phead"`, "sticky header of the detail pane")
 	must(t, html, `id="dirty"`, "unsaved-changes indicator")
+	must(t, html, `data-cond="${c.k}"`, "condition row")
+	must(t, html, `data-addcond=`, "add-condition menu")
+	must(t, html, `id="g_savekeys"`, "save-keywords group setting")
 
 	// Logs: dropdown filters with checkboxes (multi-select), loaded from data.
 	must(t, html, `class="msel"`, "logs dropdown filter")
@@ -86,7 +104,10 @@ func TestSPAKeyFunctions(t *testing.T) {
 		"function commit(",     // model <- currently mounted form
 		"function collectStream(", "function collectGroup(", "function saveAll(",
 		"function markDirty(", // unsaved-changes tracking
-		"function msel(",      // constructor of the logs dropdown filter
+		"function waterfall(", "function condChips(", "function condRow(", "function resetCond(",
+		"function configured(", // which conditions a stream carries
+		"function toggleTheme(", "function drawChart(", "function renderPerf(",
+		"function msel(", // constructor of the logs dropdown filter
 		"function buildLogFilters(",
 	} {
 		must(t, html, fn, fn)
