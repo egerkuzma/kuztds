@@ -589,6 +589,7 @@ cmd/
 internal/
   ipindex/      CIDR index O(log n) + list manager with hot-reload
   config/       group/stream model + JSON loader (hot-reload)
+  seplist/      separation lists in memory (hot-reload)
   geo/          MMDB (MaxMind) / Nop resolver
   detect/       device + OS/browser/brand + bots, signatures
   router/       stream selection (predicates)

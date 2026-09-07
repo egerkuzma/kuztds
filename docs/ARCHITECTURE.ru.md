@@ -58,6 +58,7 @@ HTTP-запрос
 |-------|------|
 | `ipindex` | CIDR-индекс O(log n) + менеджер списков с hot-reload |
 | `config` | модель групп/потоков (правила-данные) + JSON-загрузчик с алиасами, атомарная подмена при hot-reload |
+| `seplist` | списки separation («ключ;out») в памяти, с hot-reload |
 | `geo` | Resolver: MMDB (MaxMind) / Nop |
 | `detect` | устройство + OS/браузер/бренд (mileusna/useragent) + боты, сигнатуры с hot-reload |
 | `router` | выбор потока (предикаты), фильтры lang/country/.../os/browser/brand/schedule/limit |

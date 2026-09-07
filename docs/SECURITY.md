@@ -3,7 +3,7 @@
 # KuzTDS security model
 
 A normative document: requirements + what's already done (✅) and what's planned
-(⏳). Up to date as of 2026-08-20. The rest — in `TODO.md`.
+(⏳). Up to date as of 2026-09-07. The rest — in `TODO.md`.
 
 ## 1. Serialization and input
 - ✅ **No deserialization of untrusted data** — JSON only (`encoding/json`),
@@ -45,6 +45,27 @@ A normative document: requirements + what's already done (✅) and what's planne
   contents of `KUZTDS_ADMIN_PASSWORD_FILE`) therefore logs everyone out — even
   when the password itself has not changed. Expect a re-login after any
   redeploy that regenerates the hash.
+- ✅ The login endpoint answers the same way whether or not the password was
+  right when the stores are down. The limiter reports a storage failure instead
+  of failing open into `true`, and the handler answers 500 on it **before** any
+  password is compared — otherwise a wrong password (401) and a right one whose
+  session could not be written (500) told an unauthenticated caller which was
+  which, against a dead Redis, at no cost. Narrowed rather than removed: Redis
+  can still die between the limiter and `issueSession`, and every probe of that
+  residue costs one argon2 verification and a limiter slot.
+- ✅ Verification cost is bounded. The parameters come out of the stored hash,
+  so a hash with an absurd `m=` would otherwise let anyone make the process
+  allocate that much per login attempt. Memory is clamped to 8 MiB…256 MiB and
+  the other parameters likewise; a hash outside the range is rejected, not
+  honoured.
+- ✅ The submitted login name is no longer written to the log. A failed attempt
+  records that one happened, not what was tried — passwords land in the name
+  field often enough.
+- ✅ The password hash has one writer: a shared tmp-file + rename helper (0600
+  for the hash, 0644 for a list), so a crash or a full disk cannot leave the
+  file empty or half-written. An unreadable or empty hash file is an error, not
+  a silent fall back to the environment value — that fallback restored the old
+  password.
 - ⏳ Forced change of the default password on first start.
 - ⏳ TOTP (RFC 6238) and admin IP allowlist.
 
@@ -64,7 +85,16 @@ A normative document: requirements + what's already done (✅) and what's planne
 
 ## 6. Network and headers
 - ✅ Admin security headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy`.
-- ✅ Timeouts on external calls (CURL redirect, `[REMOTE]`, PTR lookup).
+- ✅ Timeouts on external calls (CURL redirect, `[REMOTE]`, PTR lookup), set by
+  the caller from the cost of giving up: 2 s for `[REMOTE]` (falls back to
+  `reserved`), 8 s for CURL (a failure burns the click).
+- ✅ The outbound side is bounded: `MaxConnsPerHost` caps simultaneous
+  connections to one partner, so a partner that stalls holds a fixed number of
+  sockets instead of one per visitor. `net/http` has no default for it at all.
+- ✅ The fetch cache is bounded by bytes (64 MiB over keys and values) and
+  sweeps expired entries. Its keys are URLs after macro expansion, and `[IP]`,
+  `[CID]` and `[PAR-n]` make a key asked for once and never again — unbounded,
+  that map was a log of every URL the process had ever built.
 - ✅ Request body size limits (MaxBytesReader); log export is bounded.
 - ⏳ TLS+HSTS (terminated at the edge — deployment), CSP/`X-Frame-Options` for the SPA.
 

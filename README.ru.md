@@ -591,6 +591,7 @@ cmd/
 internal/
   ipindex/      CIDR-индекс O(log n) + менеджер списков с hot-reload
   config/       модель групп/потоков + JSON-загрузчик (hot-reload)
+  seplist/      списки separation в памяти (hot-reload)
   geo/          MMDB (MaxMind) / Nop резолвер
   detect/       устройство + ОС/браузер/бренд + боты, сигнатуры
   router/       выбор потока (предикаты)

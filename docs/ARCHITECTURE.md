@@ -58,6 +58,7 @@ specific stream; bot_redirect serves bots a separate output.
 |---------|------|
 | `ipindex` | CIDR index O(log n) + list manager with hot-reload |
 | `config` | group/stream model (data rules) + JSON loader with aliases, atomic swap on hot-reload |
+| `seplist` | separation lists ("key;out") held in memory with hot-reload |
 | `geo` | Resolver: MMDB (MaxMind) / Nop |
 | `detect` | device + OS/browser/brand (mileusna/useragent) + bots, signatures with hot-reload |
 | `router` | stream selection (predicates), filters lang/country/.../os/browser/brand/schedule/limit |

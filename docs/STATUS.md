@@ -2,7 +2,7 @@
 
 # STATUS — where we are and how to continue
 
-Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
+Snapshot as of 2026-09-07. For details: `docs/USAGE.md`, `TODO.md`.
 
 ## Done (in `main`, tests green)
 - **Phases 1–7**: ipindex (+hot-reload), realip, geo (mmdb/Nop) + detect
@@ -85,6 +85,40 @@ Snapshot as of 2026-08-20. For details: `docs/USAGE.md`, `TODO.md`.
   the filter never goes live pointing at a list that was never read.
   `cmd/engine/reload.go` + `reload_test.go`.
 
+- **Hardening pass (2026-09-07, PRs #13–#27).** Grouped by what each protects:
+
+  *Hot path, correctness.* A failed CURL fetch is no longer served as a normal
+  page — the partner's error body used to be rendered under our own 200 and
+  logged as an ordinary serve (#13). The `[REMOTE]` value is spliced in **after**
+  `render.Expand`, so a partner returning `[RANDLINE-(secret.dat)-1]` can no
+  longer make the engine read a file from the data dir and serve it (#18). The
+  stream limit is taken in one atomic step instead of read-then-increment, which
+  used to overshoot by roughly the concurrency — 114 serves on a limit of 100
+  under 64 goroutines, exactly 100 after (#14).
+
+  *Load and lifetime.* logbuf accumulates and inserts in separate goroutines, so
+  a slow ClickHouse no longer blinds the buffer at the rate of having no buffer
+  at all; shutdown has one owner and two sequential budgets, and a full batch
+  queue is its own loss cause, `Losses.Queue` (#19). The fetch cache is bounded
+  by bytes and sweeps expired entries — its keys carry `[IP]`/`[CID]`/`[PAR-n]`,
+  so it grew by one entry per visitor forever (#24). The HTTP client has a real
+  transport with an outbound ceiling; `net/http` defaults to 2 idle connections
+  per host and no cap at all on simultaneous ones (#16). Separation lists are
+  held in memory instead of being read from disk on every request (#17).
+
+  *Admin.* See `SECURITY.md` §3: the login oracle against a dead Redis, the
+  bound on hashing cost, the login name out of the logs (#23, landed by #25),
+  one writer and an atomic write for the password hash (#22), and a login
+  limiter that could ban the administrator permanently (#21).
+
+- **Process note.** #15–#17 were a stack: each targeted the previous *branch*
+  rather than `main`. #13 landed first, the chain snapped, and GitHub reported
+  the rest as MERGED — which was true of the branches and false of `main`. The
+  transport and seplist work sat outside `main` for ten days until #27 carried
+  it over; the login half (#23 into #21's branch) was caught earlier by #25.
+  Worth remembering before stacking PRs again: merged into a branch is not
+  merged.
+
 ## Tests (coverage as of 2026-08-20)
 Run: `go test ./...` (unit) and `go test -tags=integration ./...` (with
 CH+Redis). `go vet ./...` — clean. Coverage command:
@@ -92,24 +126,25 @@ CH+Redis). `go vet ./...` — clean. Coverage command:
 
 | Package | Coverage | Note |
 |---------|:--:|---|
-| internal/fetch | 96.9% | httptest + `now` override for TTL |
-| internal/logbuf | 93.6% | |
-| internal/security | 84.3% | |
+| internal/fetch | 98.6% | httptest + `now` override for TTL |
+| internal/logbuf | 90.9% | |
+| internal/security | 87.3% | |
 | internal/ipindex | 83.7% | |
 | internal/geo | 82.6% | mmdb test |
 | internal/router | 81.9% | + regression country/lang values-only |
+| internal/seplist | 80.5% | separation lists in memory, hot-reload, malformed lines |
 | internal/detect | 80.5% | |
 | internal/render | 80.5% | |
 | internal/config | 80.0% | |
 | internal/store | 77.0% * | miniredis (Counters/sessions) + CH under `-tags=integration` |
-| internal/admin | 74.7% | login/CSRF/groups/lists/keys/password/export + file stores + SPA (web_test.go) |
+| internal/admin | 75.2% | login/CSRF/groups/lists/keys/password/export + file stores + SPA (web_test.go) |
 | internal/server | 73.2% | |
+| cmd/engine | 72.1% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios: all redirect types, all macros, bots, geo, filters, operators, distribution, limits, firewall, separation, schedule, chance, api mode, traffic matrix) |
 | cmd/apiclient | 71.6% | round-trip with a fake TDS (`newClientHandler`) |
-| cmd/engine | 66.1% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios: all redirect types, all macros, bots, geo, filters, operators, distribution, limits, firewall, separation, schedule, chance, api mode, traffic matrix) |
 | cmd/admin | 0% | only the `main()` wiring; the logic is in internal/admin |
 
 \* `internal/store` was not re-measured on 2026-08-20: ClickHouse was not
-running, so the `integration` tests skip (29.7% without them). The 77.0% figure
+running, so the `integration` tests skip (27.5% without them). The 77.0% figure
 is the last measurement with ClickHouse up.
 
 Refactor for testability: hot-path handlers were extracted from `main()`
