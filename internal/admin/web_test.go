@@ -37,59 +37,67 @@ func TestSPAServedViaHandler(t *testing.T) {
 }
 
 // TestSPAStructure — the markup contains the key elements of the interface:
-// sidebar navigation with all tabs, the settings gear and the user block
-// in the top right corner, and the master–detail groups editor.
+// one top bar with the navigation (and no sidebar), the flow canvas with its
+// wires, the drawer editors, the save bar, and both themes.
 func TestSPAStructure(t *testing.T) {
 	html := string(indexHTML)
 
-	// Sidebar + navigation across all sections (buttons are built from navItem('<tab>')).
-	must(t, html, `class="sidebar"`, "sidebar")
-	must(t, html, "data-t=\"${t}\"", "navigation button template")
-	for _, tab := range []string{"dashboard", "logs", "postbacks", "keys", "groups", "lists"} {
-		must(t, html, `navItem('`+tab+`')`, "navigation button "+tab)
+	// Shell: a single top bar; the navigation is built from the NAV table.
+	must(t, html, `class="top"`, "top bar")
+	must(t, html, `id="nav"`, "navigation")
+	for _, page := range []string{"dashboard", "flows", "logs", "conversions", "keywords", "lists", "tools", "automation"} {
+		must(t, html, `['`+page+`','`, "navigation entry "+page)
 	}
-
-	// Top right corner: period, settings gear, user chip, logout.
+	mustNot(t, html, `class="sidebar"`, "a sidebar — the layout has none")
 	must(t, html, `id="period"`, "period selector")
-	must(t, html, `id="gear"`, "settings gear")
-	must(t, html, `class="userchip"`, "user chip")
-	must(t, html, `id="out"`, "logout button")
+	must(t, html, `id="userbtn"`, "user menu")
+	must(t, html, `window.addEventListener('hashchange',render)`, "hash routing")
 
 	// Light/dark theme: a toggle in the top bar, tokens for both, the system
 	// preference honoured until the user picks one.
-	must(t, html, `id="theme"`, "theme toggle")
+	must(t, html, `data-theme-btn`, "theme toggle")
 	must(t, html, `:root[data-theme="dark"]`, "dark theme tokens")
 	must(t, html, `prefers-color-scheme: dark`, "system theme preference")
 	must(t, html, `localStorage.getItem('kuztds-theme')`, "remembered theme")
 
-	// Dashboard: the performance table by group and stream.
+	// Dashboard: the performance table by flow and stream.
 	must(t, html, `/api/stats/performance`, "performance request")
 	must(t, html, `class="perft"`, "performance table")
 
-	// Groups: collapsible tree (chevron) on the left, one detail pane on the right:
-	// the group's waterfall of streams or one stream's WHEN → THEN editor.
-	must(t, html, `class="glist"`, "group tree")
-	must(t, html, `class="chev`, "group collapse chevron")
-	must(t, html, `class="snode`, "stream node in the tree")
-	must(t, html, `id="gpane"`, "detail pane")
-	must(t, html, `class="wf"`, "waterfall of streams")
-	must(t, html, `draggable="true"`, "drag-to-reorder rows")
-	must(t, html, `data-toggle-s=`, "per-row enable switch")
-	must(t, html, `streamcard`, "stream card")
-	must(t, html, `class="phead"`, "sticky header of the detail pane")
-	must(t, html, `id="dirty"`, "unsaved-changes indicator")
+	// Flows: cards, then a canvas per flow — nodes, destinations, wires, drag handle.
+	must(t, html, `id="fgrid"`, "flow cards")
+	must(t, html, `class="canvas"`, "flow canvas")
+	must(t, html, `id="wires"`, "wires layer")
+	must(t, html, `data-grip`, "drag handle")
+	must(t, html, `data-toggle`, "per-stream switch")
+	must(t, html, `id="fbnode"`, "the no-match node")
+	must(t, html, `data-goto=`, "link to another flow")
+	must(t, html, `/api/simulate`, "visitor test request")
+
+	// Editors live in a drawer; conditions are added from a menu.
+	must(t, html, `class="drawer"`, "drawer")
 	must(t, html, `data-cond="${c.k}"`, "condition row")
-	must(t, html, `data-addcond=`, "add-condition menu")
-	must(t, html, `id="g_savekeys"`, "save-keywords group setting")
+	must(t, html, `data-c="${c.k}"`, "add-condition menu")
+	for _, k := range []string{"country", "asn", "org", "timezone", "get", "operators", "ip_list", "schedule", "limit"} {
+		must(t, html, `{k:'`+k+`'`, "condition "+k)
+	}
+	must(t, html, `id="g_savekeys"`, "save-keywords flow setting")
+
+	// One save bar for everything that can be edited.
+	must(t, html, `id="savebar"`, "save bar")
+	must(t, html, `id="dirty"`, "unsaved-changes label")
 
 	// Logs: dropdown filters with checkboxes (multi-select), loaded from data.
 	must(t, html, `class="msel"`, "logs dropdown filter")
 	must(t, html, `class="msel-list"`, "filter values list")
 	must(t, html, `/api/logs/filters`, "request for available filter values")
-
-	// Country flag in logs.
 	must(t, html, `const flag=`, "country flag helper")
 	must(t, html, `class="flag"`, "country flag in the geo column")
+
+	// Tools and automation.
+	must(t, html, `/api/lookup`, "IP lookup request")
+	must(t, html, `/api/cron`, "cron config request")
+	must(t, html, `/api/cron/run`, "run-now request")
 }
 
 // TestSPAKeyFunctions — critical UI functions are present (protection against
@@ -97,37 +105,32 @@ func TestSPAStructure(t *testing.T) {
 func TestSPAKeyFunctions(t *testing.T) {
 	html := string(indexHTML)
 	for _, fn := range []string{
-		"function app(", "function openTab(", "function groups(", "function streamForm(",
-		"function groupForm(",  // the group's own form — the other half of master–detail
-		"function renderTree(", // left pane
-		"function renderPane(", // right pane: exactly one form at a time
-		"function commit(",     // model <- currently mounted form
-		"function collectStream(", "function collectGroup(", "function saveAll(",
-		"function markDirty(", // unsaved-changes tracking
-		"function waterfall(", "function condChips(", "function condRow(", "function resetCond(",
-		"function configured(", // which conditions a stream carries
+		"function app(", "function render(", "function route(",
+		"function flows(", "function flowPage(", "function renderFlow(",
+		"function drawWires(", "function bindSort(", "function moveStream(",
+		"function openStream(", "function paintStream(", "function collectStream(",
+		"function openFlowSettings(", "function collectFlow(",
+		"function condChips(", "function condRow(", "function resetCond(", "function configured(",
+		"function paintTester(",
+		"function saveAll(", "function saveFlows(", "function saveCron(", "function syncSaveBar(", "function markDirty(",
+		"function msel(", "function buildLogFilters(", "function logDetail(",
 		"function toggleTheme(", "function drawChart(", "function renderPerf(",
-		"function msel(", // constructor of the logs dropdown filter
-		"function buildLogFilters(",
+		"function tools(", "function automation(", "function paintCronStatus(",
 	} {
 		must(t, html, fn, fn)
 	}
 }
 
-// TestGroupsEditorDoesNotScrollThePage pins the reason the editor was rebuilt.
-// The stream form used to render below the group form, so selecting a stream
-// pushed it off-screen and the code chased it with scrollIntoView(). Both forms
-// now share one pane that scrolls internally; if scrollIntoView reappears, the
-// old layout has crept back in.
-func TestGroupsEditorDoesNotScrollThePage(t *testing.T) {
+// TestEditorsDoNotMoveThePage pins a property the interface was rebuilt for
+// twice: opening something must not scroll or shift what is under it. Editors
+// are drawers that overlay the page and scroll inside themselves; if
+// scrollIntoView reappears, a layout that needs chasing has crept back in.
+func TestEditorsDoNotMoveThePage(t *testing.T) {
 	html := string(indexHTML)
-	// Matches a real call (obj.scrollIntoView(...)), not the prose in the
-	// comment that explains why there is none.
-	mustNot(t, html, ".scrollIntoView(", "page-scrolling hack in the groups editor")
-	mustNot(t, html, "focusStream", "the scroll-chasing helper")
-	// The pane scrolls inside itself instead.
-	must(t, html, `.gpane{`, "detail pane style")
-	must(t, html, `overflow-y:auto`, "internal scrolling of the editor panes")
+	mustNot(t, html, ".scrollIntoView(", "page-scrolling hack")
+	must(t, html, `.drawer{position:fixed`, "the drawer overlays the page")
+	must(t, html, `.db{flex:1;overflow-y:auto`, "the drawer body scrolls inside itself")
+	must(t, html, `scrollbar-gutter:stable`, "no width jump when a page gets a scrollbar")
 }
 
 func must(t *testing.T, html, needle, what string) {

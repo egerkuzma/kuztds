@@ -88,3 +88,32 @@ func TestGroupLinkBroken(t *testing.T) {
 		t.Errorf("three hops: %q; want D", got)
 	}
 }
+
+// The event of a forwarded visit is logged under the group that served it and
+// names the stream that sent it on — the first one, when links are chained —
+// so the sending flow's statistics can count it too.
+func TestGroupLinkIsLogged(t *testing.T) {
+	gg := linked(
+		&config.Group{ID: "a", Name: "A", Status: true, Redirect: "stop", Streams: []config.Stream{link("to_b", "b", config.Rules{})}},
+		&config.Group{ID: "b", Name: "B", Status: true, Redirect: "group", Out: "c"},
+		&config.Group{ID: "c", Name: "C", Status: true, Redirect: "stop", Streams: []config.Stream{text("final", "C", config.Rules{})}},
+	)
+	h, ins, stop := curlEnv(t, gg, "0")
+	ua := map[string]string{"User-Agent": uaWinChrome}
+	do(t, h, "/a", "8.8.8.8", ua) // a/to_b → b (default link) → c/final
+	do(t, h, "/c", "8.8.4.4", ua) // straight in
+	stop()
+	if len(ins.events) != 2 {
+		t.Fatalf("events = %d; want 2", len(ins.events))
+	}
+	byIP := map[string]int{}
+	for i, e := range ins.events {
+		byIP[e.IP] = i
+	}
+	if e := ins.events[byIP["8.8.8.8"]]; e.GroupID != "c" || e.Stream != "final" || e.Via != "a/to_b" {
+		t.Errorf("forwarded visit logged as %s/%s via %q; want c/final via a/to_b", e.GroupID, e.Stream, e.Via)
+	}
+	if e := ins.events[byIP["8.8.4.4"]]; e.Via != "" {
+		t.Errorf("a direct visit has via %q", e.Via)
+	}
+}

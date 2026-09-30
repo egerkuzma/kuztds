@@ -8,4 +8,6 @@
 ALTER TABLE kuztds.events
     ADD COLUMN IF NOT EXISTS asn UInt32,
     ADD COLUMN IF NOT EXISTS org LowCardinality(String),
-    ADD COLUMN IF NOT EXISTS timezone LowCardinality(String);
+    ADD COLUMN IF NOT EXISTS timezone LowCardinality(String),
+    -- "<group id>/<stream>" of the stream that handed the visitor to this group
+    ADD COLUMN IF NOT EXISTS via LowCardinality(String);

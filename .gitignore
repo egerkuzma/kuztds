@@ -7,12 +7,16 @@ kuztds-admin
 /engine
 /admin
 /apiclient
+/cron
 
 # Local configs and secrets (DO NOT commit)
 *.local.yaml
 *.env
 .env
 secrets/
+# cron service config (holds the bot token and API keys) and its state
+cron.json
+cron.json.*
 
 # Data (do not version large/sensitive files)
 /data/

@@ -143,7 +143,7 @@ const DefaultConversionTemplate = "💰 [PROFIT] — [GROUP] / [STREAM] · [COUN
 func Default() Config {
 	return Config{
 		IPLists: IPLists{EveryMinutes: 24 * 60, Sources: []IPSource{
-			{URL: "https://developers.google.com/static/search/apis/ipranges/googlebot.json", Target: "ip_google", Mode: "replace"},
+			{URL: "https://developers.google.com/static/crawling/ipranges/common-crawlers.json", Target: "ip_google", Mode: "replace"},
 			{URL: "https://www.bing.com/toolbox/bingbot.json", Target: "ip_bing", Mode: "replace"},
 		}},
 		GeoDB: GeoDB{EveryMinutes: 3 * 24 * 60, Sources: []GeoSource{

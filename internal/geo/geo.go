@@ -78,7 +78,8 @@ type record struct {
 		Names map[string]string `maxminddb:"names"`
 	} `maxminddb:"city"`
 	Subdivisions []struct {
-		ISOCode string `maxminddb:"iso_code"`
+		ISOCode string            `maxminddb:"iso_code"`
+		Names   map[string]string `maxminddb:"names"`
 	} `maxminddb:"subdivisions"`
 	Location struct {
 		TimeZone string `maxminddb:"time_zone"`
@@ -95,7 +96,11 @@ type asnRecord struct {
 func fromRecord(r record) Geo {
 	region := ""
 	if n := len(r.Subdivisions); n > 0 {
-		region = r.Subdivisions[n-1].ISOCode // last subdivision = most specific
+		// The last subdivision is the most specific. Databases without ISO
+		// codes for subdivisions (DB-IP Lite) still name them.
+		if region = r.Subdivisions[n-1].ISOCode; region == "" {
+			region = r.Subdivisions[n-1].Names["en"]
+		}
 	}
 	return Geo{
 		Country:  norm(r.Country.ISOCode),

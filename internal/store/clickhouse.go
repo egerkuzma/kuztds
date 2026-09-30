@@ -14,7 +14,7 @@ import (
 // CH — a ClickHouse client for batch-inserting events. Implements logbuf.Inserter.
 type CH struct {
 	conn driver.Conn
-	// netCols: the events table has the asn/org/timezone columns. They were
+	// netCols: the events table has the asn/org/timezone/via columns. They were
 	// added after the first release, so a database created before that has
 	// them only if the ALTER in ensureSchema went through. Writes and reads
 	// both consult this rather than assume — an INSERT naming a column that is
@@ -47,7 +47,8 @@ func OpenCH(addr, database, username, password string) (*CH, error) {
 // netColumns — columns added to events after the first release.
 const netColumns = `ADD COLUMN IF NOT EXISTS asn UInt32,
 	ADD COLUMN IF NOT EXISTS org LowCardinality(String),
-	ADD COLUMN IF NOT EXISTS timezone LowCardinality(String)`
+	ADD COLUMN IF NOT EXISTS timezone LowCardinality(String),
+	ADD COLUMN IF NOT EXISTS via LowCardinality(String)`
 
 // ensureSchema brings an older events table up to date and records whether it
 // worked. The ALTER is idempotent and metadata-only, so running it on every
@@ -58,11 +59,11 @@ func (c *CH) ensureSchema(ctx context.Context) {
 	var n uint64
 	err := c.conn.QueryRow(ctx, `SELECT count() FROM system.columns
 		WHERE database = currentDatabase() AND table = 'events'
-		  AND name IN ('asn', 'org', 'timezone')`).Scan(&n)
-	c.netCols = err == nil && n == 3
+		  AND name IN ('asn', 'org', 'timezone', 'via')`).Scan(&n)
+	c.netCols = err == nil && n == 4
 }
 
-// NetworkColumns reports whether events carry asn/org/timezone.
+// NetworkColumns reports whether events carry asn/org/timezone/via.
 func (c *CH) NetworkColumns() bool { return c != nil && c.netCols }
 
 // Close closes the connection.
@@ -177,6 +178,11 @@ type PerfRow struct {
 	Bots    int64   `json:"bots"`
 	Conv    int64   `json:"conv"`
 	Profit  float64 `json:"profit"`
+	// Forwarded — visits this stream handed to another group (type "group").
+	// They are logged under the group that served them; here they are added
+	// to Hits/Unique/Bots of the stream that sent them on, so a flow's
+	// numbers show everything that went through it.
+	Forwarded int64 `json:"forwarded"`
 }
 
 // Performance aggregates events and postbacks per group and stream over a
@@ -212,6 +218,11 @@ func (c *CH) Performance(ctx context.Context, from, to time.Time) ([]PerfRow, er
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if c.netCols {
+		if err := c.addForwarded(ctx, from, to, &out); err != nil {
+			return nil, err
+		}
 	}
 	pbs, err := c.conn.Query(ctx,
 		`SELECT group_name, stream_name, count() AS conv, sum(profit) AS profit
@@ -270,6 +281,47 @@ func (c *CH) Breakdown(ctx context.Context, from, to time.Time, dim string, limi
 		out = append(out, kv)
 	}
 	return out, rows.Err()
+}
+
+// addForwarded adds the visits each linking stream sent on to another group.
+func (c *CH) addForwarded(ctx context.Context, from, to time.Time, out *[]PerfRow) error {
+	rows, err := c.conn.Query(ctx,
+		`SELECT via, count() AS hits, countIf(uniq = 1) AS uniq,
+		        countIf(bot != '' AND bot != '-') AS bots
+		 FROM events WHERE ts >= ? AND ts < ? AND via != ''
+		 GROUP BY via`, from, to)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var via string
+		var hits, uniq, bots uint64
+		if err := rows.Scan(&via, &hits, &uniq, &bots); err != nil {
+			return err
+		}
+		gid, stream, ok := strings.Cut(via, "/")
+		if !ok {
+			continue
+		}
+		i := -1
+		for k := range *out {
+			if (*out)[k].GroupID == gid && (*out)[k].Stream == stream {
+				i = k
+				break
+			}
+		}
+		if i < 0 {
+			*out = append(*out, PerfRow{GroupID: gid, Stream: stream})
+			i = len(*out) - 1
+		}
+		p := &(*out)[i]
+		p.Hits += int64(hits)
+		p.Unique += int64(uniq)
+		p.Bots += int64(bots)
+		p.Forwarded += int64(hits)
+	}
+	return rows.Err()
 }
 
 // LogFilter — log-viewing filters (all optional). Categorical fields are
@@ -485,7 +537,7 @@ func (c *CH) InsertEvents(ctx context.Context, events []logbuf.Event) error {
 		 domain, page, se, os, os_version, browser, browser_ver, brand,
 		 counter, cid, postback`
 	if c.netCols {
-		cols += ", asn, org, timezone"
+		cols += ", asn, org, timezone, via"
 	}
 	batch, err := c.conn.PrepareBatch(ctx, "INSERT INTO events ("+cols+")")
 	if err != nil {
@@ -500,7 +552,7 @@ func (c *CH) InsertEvents(ctx context.Context, events []logbuf.Event) error {
 			e.Counter, e.CID, e.Postback,
 		}
 		if c.netCols {
-			row = append(row, e.ASN, e.Org, e.Timezone)
+			row = append(row, e.ASN, e.Org, e.Timezone, e.Via)
 		}
 		if err := batch.Append(row...); err != nil {
 			return fmt.Errorf("clickhouse: append: %w", err)

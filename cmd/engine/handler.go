@@ -290,6 +290,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	var (
 		streamName, redirect, outRaw, ctype string
 		selStream                           *config.Stream
+		via                                 string // the first link followed: "<group id>/<stream>"
 	)
 	for hop := 0; ; hop++ {
 		deps := router.Deps{IP: d.lists}
@@ -324,6 +325,9 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 			d.log.Warn("engine: group link not followed", "group", grp.ID, "stream", streamName, "target", outRaw, "hop", hop)
 			trashResult(d.trashMode, d.trashURL).Write(w)
 			return
+		}
+		if via == "" {
+			via = grp.ID + "/" + streamName
 		}
 		grp = next
 	}
@@ -451,7 +455,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 			Referer: v.Referer, UserAgent: ua, Domain: v.Domain, Keyword: v.Key,
 			OS: info.OS, OSVersion: info.OSVersion, Browser: info.Browser,
 			BrowserV: info.BrowserVer, Brand: info.Brand, CID: cid,
-			ASN: g.ASN, Org: dashEmpty(g.Org), Timezone: dashEmpty(g.Timezone),
+			ASN: g.ASN, Org: dashEmpty(g.Org), Timezone: dashEmpty(g.Timezone), Via: via,
 		})
 	}
 
