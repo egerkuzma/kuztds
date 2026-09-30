@@ -124,6 +124,8 @@ type Runner struct {
 	now          func() time.Time
 	disk         func(path string) (free, total uint64, err error)
 
+	cfgErr string // the config problem last reported (Tick runs on one goroutine)
+
 	mu      sync.Mutex
 	saveMu  sync.Mutex // orders writes of the status file, see save
 	st      Status
@@ -186,10 +188,15 @@ func (r *Runner) Tick(ctx context.Context) {
 		err = cfg.Validate()
 	}
 	if err != nil {
-		r.log.Error("cron: config not usable, nothing runs until it is fixed", "err", err)
+		// Said once per distinct problem, not once per tick.
+		if msg := err.Error(); msg != r.cfgErr {
+			r.cfgErr = msg
+			r.log.Error("cron: config not usable, nothing runs until it is fixed", "err", err)
+		}
 		r.heartbeat()
 		return
 	}
+	r.cfgErr = ""
 	now := r.now()
 	requested := r.takeRequests()
 	for _, job := range Jobs {
@@ -214,12 +221,18 @@ func (r *Runner) Wait() { r.wg.Wait() }
 
 func (r *Runner) takeRequests() map[string]bool {
 	out := map[string]bool{}
+	// Rename first, read second: a request appended while the file is being
+	// read would otherwise be deleted unread.
 	p := TriggerPath(r.paths.Config)
-	b, err := os.ReadFile(p)
+	taken := p + ".taken"
+	if err := os.Rename(p, taken); err != nil {
+		return out
+	}
+	b, err := os.ReadFile(taken)
+	_ = os.Remove(taken)
 	if err != nil {
 		return out
 	}
-	_ = os.Remove(p)
 	for _, line := range strings.Split(string(b), "\n") {
 		if j := strings.TrimSpace(line); j != "" {
 			out[j] = true
@@ -235,7 +248,8 @@ func (r *Runner) start(ctx context.Context, cfg Config, job string) {
 		return
 	}
 	r.running[job] = true
-	js := r.st.Jobs[job]
+	prev := r.st.Jobs[job]
+	js := prev
 	js.Running = true
 	r.st.Jobs[job] = js
 	r.mu.Unlock()
@@ -249,6 +263,17 @@ func (r *Runner) start(ctx context.Context, cfg Config, job string) {
 		took := r.now().Sub(began)
 
 		r.mu.Lock()
+		// A run cut short by shutdown did not happen as far as the schedule
+		// is concerned: recording it would push the next attempt a whole
+		// interval away — days, for the geo databases.
+		if ctx.Err() != nil {
+			r.st.Jobs[job] = prev
+			delete(r.running, job)
+			r.mu.Unlock()
+			r.save()
+			r.log.Info("cron: job interrupted by shutdown, it keeps its place in the schedule", "job", job)
+			return
+		}
 		js := JobStatus{LastRun: began, OK: err == nil, Message: msg, DurationMS: took.Milliseconds()}
 		if err != nil {
 			js.Message = err.Error()

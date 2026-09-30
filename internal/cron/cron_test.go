@@ -994,3 +994,77 @@ func TestStatusFileIsNeverStale(t *testing.T) {
 		}
 	}
 }
+
+// A job interrupted by shutdown keeps its place in the schedule: after the
+// restart it is still due, instead of waiting out a full interval.
+func TestInterruptedJobStaysDue(t *testing.T) {
+	e := newEnv(t)
+	started := make(chan struct{})
+	e.mux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-r.Context().Done() // hold the download until the client gives up
+	})
+	cfg := Default()
+	cfg.GeoDB = GeoDB{Enabled: true, EveryMinutes: 3 * 24 * 60, Sources: []GeoSource{{Kind: "city", URL: e.srv.URL + "/slow"}}}
+	e.saveConfig(cfg)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	e.r.Tick(ctx)
+	<-started
+	if !e.status().Jobs[JobGeoDB].Running {
+		t.Error("the status file must show the job running")
+	}
+	cancel()
+	e.r.Wait()
+	st := e.status().Jobs[JobGeoDB]
+	if st.Running || !st.LastRun.IsZero() || !st.NextRun.IsZero() {
+		t.Fatalf("after an interrupted run: %+v; want it untouched", st)
+	}
+
+	// The next process finds it due.
+	r2 := New(e.r.paths, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ran := make(chan struct{}, 1)
+	e.mux.HandleFunc("/quick", func(w http.ResponseWriter, r *http.Request) {
+		ran <- struct{}{}
+		_, _ = w.Write(testDB(t, "GeoLite2-City-Test.mmdb"))
+	})
+	cfg.GeoDB.Sources[0].URL = e.srv.URL + "/quick"
+	e.saveConfig(cfg)
+	r2.Tick(context.Background())
+	r2.Wait()
+	select {
+	case <-ran:
+	default:
+		t.Error("the interrupted job was not retried after the restart")
+	}
+}
+
+// A broken config is reported once, not on every tick; a request queued while
+// the config is broken is still there when it is fixed.
+func TestBadConfigIsReportedOnceAndRequestsSurvive(t *testing.T) {
+	e := newEnv(t)
+	var logged bytes.Buffer
+	e.r.log = slog.New(slog.NewTextHandler(&logged, nil))
+	e.r.disk = func(string) (uint64, uint64, error) { return 50, 100, nil }
+	if err := os.WriteFile(e.r.paths.Config, []byte(`{not json`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := RequestRun(e.r.paths.Config, JobDisk); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		e.r.Tick(context.Background())
+	}
+	if n := strings.Count(logged.String(), "config not usable"); n != 1 {
+		t.Errorf("the config error was logged %d times in 5 ticks; want once", n)
+	}
+	e.saveConfig(Default())
+	e.r.Tick(context.Background())
+	e.r.Wait()
+	if d := e.status().Jobs[JobDisk]; !d.OK || d.LastRun.IsZero() {
+		t.Errorf("the request made while the config was broken was lost: %+v", d)
+	}
+	if _, err := os.Stat(TriggerPath(e.r.paths.Config) + ".taken"); !os.IsNotExist(err) {
+		t.Error("the taken request file was left behind")
+	}
+}
