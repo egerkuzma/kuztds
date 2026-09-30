@@ -17,7 +17,7 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
 - **Block 6** — api client (`cmd/apiclient`) + `?api=` handling in the engine.
 - **Block 7** — CSV log export, sources (domains), per-group log cleanup,
   stream reordering ↑/↓.
-- **UI (redesigned 2026-09-08)**: GitHub (Primer) style in **light and dark**
+- **UI (redesigned 2026-09-08; replaced on 2026-09-30, see below)**: GitHub (Primer) style in **light and dark**
   (toggle in the top bar, remembered in the browser, system preference until
   chosen). **Dashboard** answers "what works": KPI tiles incl. conversions /
   profit / CR, a two-hue chart with hover, and a **performance table by group
@@ -39,7 +39,7 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
 - **Fix (2026-09-08)**: "Clear logs" deleted by `group_name` while the panel
   sent the group's **ID** — with a display name set, nothing was deleted.
   `DeleteGroupLogs` keys on `group_id` now (`clickhouse.go`).
-- **2026-09-30 — geo, cron, flows** (one branch, five commits):
+- **2026-09-30 — geo, cron, flows** (one branch):
   1. **Geo from MaxMind-format databases.** `geo.DB` reads a City/Country file
      (`KUZTDS_GEO_DB`) and an ASN file (`KUZTDS_ASN_DB`) into memory and swaps
      them when the files change; a corrupt replacement never blanks the data.
@@ -55,11 +55,18 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
      visitor and the setting did nothing.
   3. **Block 5 — the cron service** (`cmd/cron`, `internal/cron`): bot IP lists
      (plain, sectioned, Google/Bing JSON; replace/merge), geo database
-     downloads (`.mmdb` / `.gz` / `.tar.gz`, validated before the rename),
-     VirusTotal (alert once per domain, optional stream switch-off), disk
-     space, keyword cleanup, conversion alerts, Telegram. File-based config,
-     status and "run now"; secrets masked in the API. Run end to end on the
-     stand against the real Google, Bing and DB-IP endpoints.
+     downloads (`.mmdb` / `.gz` / `.tar.gz`, validated before the rename,
+     `If-Modified-Since` when there is a file to keep), VirusTotal (alert once
+     per domain, optional stream switch-off; an unknown domain is clean, a
+     spent quota stops the pass), disk space, keyword cleanup, conversion
+     alerts, Telegram. File-based config, status and "run now"; secrets masked
+     in the API. Run end to end on the stand against the real Google, Bing and
+     DB-IP endpoints. One race was found on the way, by a test that failed
+     once in twelve runs: the heartbeat and a finishing job both wrote the
+     status file, and the older snapshot could land last — a job then looked
+     "running" after it had finished and, across a restart, ran again. The
+     writes are ordered now; the regression test fails five times in six
+     without the fix.
   4. **Group links**: redirect type `group` hands the visitor to another group
      (≤ 3 hops, broken links answer like an unknown group); the event records
      the forwarding stream (`via`) and `Performance` counts it there too.
@@ -75,7 +82,11 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
      flows, the uniqueness window is entered in hours. Checked in a real
      browser: a 69-step scenario against the live admin (round trip of every
      stream and flow through its form, conditions, links, reorder, simulate,
-     save and read back, automation, theme).
+     save and read back, automation, theme) and a drag test driven by pointer
+     events (10 checks).
+  7. `fetch`: `TestConnectionReuse` compared the tuned transport with the
+     default one, which depends on scheduling and failed on a loaded CI runner;
+     it now asserts the bound the tuned transport guarantees.
 - **Fix**: country/lang/text filters also work when only `values` is set (no
   `raw`) — `router.go: cfgd()/orJoin()`.
 - **Fix (found by e2e tests, 2026-06-07):**
@@ -178,12 +189,12 @@ CH+Redis). `go vet ./...` — clean. Coverage command:
 |---------|:--:|---|
 | internal/fetch | 98.6% | httptest + `now` override for TTL |
 | internal/logbuf | 90.9% | |
-| internal/cron | 89.0% | every job against local HTTP servers; config, secrets, schedule, run-now |
+| internal/cron | 89.5% | every job against local HTTP servers; config, secrets, schedule, run-now |
+| internal/server | 88.9% | |
 | internal/geo | 88.8% | MaxMind test databases (City, Country, ASN), reload, offsets |
 | internal/router | 87.6% | + asn/org/timezone/get filters, `Why` |
 | internal/security | 87.3% | |
 | internal/ipindex | 83.7% | |
-| internal/server | 88.9% | |
 | internal/store | 80.6% | miniredis (Counters/sessions) + CH under `-tags=integration` |
 | internal/seplist | 80.5% | separation lists in memory, hot-reload, malformed lines |
 | internal/detect | 80.5% | |
