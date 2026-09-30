@@ -67,9 +67,10 @@ not like a script.**
   parameterized queries, `X-Forwarded-For` and `CF-IPCountry` believed only
   from trusted proxies, JSON-only input.
 - 🎛️ **Batteries included** — a polished, **embedded** admin panel: flows drawn
-  as they work (drag streams to reorder, line widths follow the traffic), a
-  visitor test that shows which rule stopped whom, dashboard, logs, conversions,
-  `.dat` editor, automation. No Node build, no separate web server.
+  as they work (drag streams to reorder, line widths follow the traffic),
+  conditions and outputs shown as words and rows instead of `|`-separated
+  strings, a visitor test that shows which rule stopped whom, dashboard, logs,
+  conversions, `.dat` editor, automation. No Node build, no separate web server.
 - 🕒 **A background service** — `cmd/cron` keeps bot IP lists and geo databases
   fresh, checks your domains with VirusTotal, watches the disk and reports
   conversions to Telegram.
@@ -171,8 +172,9 @@ the visitor away. It runs on the flows as edited, before saving:
 ![Test a visitor](docs/img/flow-test.png)
 
 **Stream editor** (dark theme) — a drawer over the page. *When*: only the
-conditions this stream uses, more from "Add condition". *Then*: where to send,
-including another flow. Bots and the rare options are folded below:
+conditions this stream uses, values as chips, more from "Add condition". *Then*:
+where to send — several variants are rows — including another flow. Bots and the
+rare options are folded below:
 
 ![Stream editor](docs/img/stream.png)
 
@@ -575,9 +577,10 @@ exact match; `ua`/`referer`/`key`/`org` accept `/regex/` or a substring;
 `[()COUNTRY()]` `[()CITY()]` · `[RANDNUM-a-b]` · `[RANDSTR-(charset)-n]` ·
 `[RANDLINE-(file)-n[/u]]` · `[RANDDFL-(dir)-n[/u]]`.
 
-**Distribution** — put several variants in `out` separated by `|||` and choose
-`distribution`: `random`, `rotator` (sticky per cookie), or `evenly` (Redis
-counter, round-robin).
+**Distribution** — put several variants in `out` separated by `|||` (in the
+admin: **Add a variant** under the output) and choose `distribution`: `random`,
+`rotator` (each visitor gets the next one; the position is kept in a cookie), or
+`evenly` (Redis counter, round-robin for everyone).
 
 ---
 

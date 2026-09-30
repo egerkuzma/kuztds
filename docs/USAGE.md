@@ -185,20 +185,31 @@ where it was and updates behind it. Sections:
    *Network* ASN, organization, mobile operator, IP list; *Device* type, brand,
    OS, browser, Yandex Browser; *Request* language, referer, referer present,
    source domain, keyword, URL parameter, User-Agent; *Visit* unique, days of
-   week, impression limit. List conditions are `is` / `is not` plus
-   comma-separated values (a `/regex/` is kept whole); an empty value means no
-   condition.
-2. **Then** — the type (six common ones as cards, all of them in the list), the
-   output with the macro list, how several `|||` variants are rotated. Choosing
-   **Another flow** replaces the output with a flow picker.
-3. **Bots** — detection signals as toggles, what bots get, their Content-Type
-   and output, whether to add detected IPs to the lists.
+   week (Monday first), impression limit. A list condition reads as a sentence
+   — `is` / `is not`, or `contains` / `does not contain` for text such as the
+   organization or the User-Agent — and its values are chips: type one and
+   press Enter or a comma, or paste a whole list; there are no separators to
+   type. A text condition can switch to a regular expression. One that is only
+   a list of alternatives (`/amazon|google|ovh/i`) is shown and edited as words
+   and saved as the same kind of expression, flags included. An expression the
+   engine could not compile is flagged while it is typed and marked on the
+   canvas. An empty list means no condition.
+2. **Then** — the type (six common ones as cards, all of them in the list) and
+   the output with the macro list. Several outputs are rows: **Add a variant**,
+   and a choice appears of which one a visit gets (at random, in turn per
+   visitor, evenly in turn); the canvas lists them one per line. **Proxy a
+   page** adds find → replace rows for the fetched page. **Another flow**
+   replaces the output with a flow picker; a fixed answer (Stop, 404…) has
+   nothing to fill in.
+3. **Bots** — detection signals as toggles, what bots get and, when they get an
+   answer of their own, its Content-Type and output (variants, and find →
+   replace for a proxied page); whether to add detected IPs to the lists.
 4. **Advanced** — show chance, Content-Type override, separation, `[REMOTE]`,
-   proxy rewrite rules, API mac code. A **note** at the end is shown on the
-   canvas.
+   API mac code. A **note** at the end is shown on the canvas.
 
-**Flow settings** (a drawer as well): ID, name, aliases; the default (type,
-Content-Type, output — or another flow); where the country comes from (CDN
+**Flow settings** (a drawer as well): ID, name, aliases (chips); the default
+(type, Content-Type, output — of several variants a random one is served — or
+another flow); where the country comes from (CDN
 header first / geo database first), uniqueness (IP or cookie, window in hours),
 keyword collection; antiflood; the links the engine serves; duplicate, clear
 logged visits, delete. Renaming a flow updates the streams that link to it.

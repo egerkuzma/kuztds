@@ -83,6 +83,17 @@ func TestSPAStructure(t *testing.T) {
 	}
 	must(t, html, `id="g_savekeys"`, "save-keywords flow setting")
 
+	// Nobody types separators: lists are chips, outputs are rows of variants,
+	// page rewrites are find → replace pairs; a text condition can switch to a
+	// regular expression. The helpers behind them are checked under node.
+	must(t, html, `<div class="tags" id="${id}"`, "chip list field")
+	must(t, html, `data-addvar=`, "add-a-variant button")
+	must(t, html, `data-addrw=`, "add-a-replacement button")
+	must(t, html, `data-rxon=`, "switch to a regular expression")
+	must(t, html, `// ---- pure: begin ----`, "start of the helpers block run by web_logic_test.go")
+	must(t, html, `// ---- pure: end ----`, "end of the helpers block run by web_logic_test.go")
+	mustNot(t, html, `(<code>|||</code>)`, "asking people to type ||| between variants")
+
 	// One save bar for everything that can be edited.
 	must(t, html, `id="savebar"`, "save bar")
 	must(t, html, `id="dirty"`, "unsaved-changes label")
@@ -111,7 +122,12 @@ func TestSPAKeyFunctions(t *testing.T) {
 		"function openStream(", "function paintStream(", "function collectStream(",
 		"function openFlowSettings(", "function collectFlow(",
 		"function condChips(", "function condRow(", "function resetCond(", "function configured(",
-		"function paintTester(",
+		"function readLF(", "function outHTML(", "function paintTester(",
+		"function tagField(", "function bindTags(", "function variantsField(", "function bindVariants(",
+		"function rewriteField(", "function bindRewrite(",
+		"function altWords(", "function listForm(", "function listValue(", "function condOps(", "function rxProblem(",
+		"function splitVariants(", "function joinVariants(", "function rewriteRows(", "function joinRewrite(",
+		"function humanSeconds(", "function dayList(",
 		"function saveAll(", "function saveFlows(", "function saveCron(", "function syncSaveBar(", "function markDirty(",
 		"function msel(", "function buildLogFilters(", "function logDetail(",
 		"function toggleTheme(", "function drawChart(", "function renderPerf(",
