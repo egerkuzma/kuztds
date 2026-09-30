@@ -26,7 +26,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	_ "time/tzdata" // time-zone filters must work in an image that ships no zoneinfo
 
 	"github.com/egerkuzma/kuztds/internal/config"
 	"github.com/egerkuzma/kuztds/internal/detect"

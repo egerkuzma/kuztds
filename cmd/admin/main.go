@@ -15,7 +15,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	_ "time/tzdata" // the panel shows UTC offsets; must work without system zoneinfo
 
 	"github.com/egerkuzma/kuztds/internal/admin"
 	"github.com/egerkuzma/kuztds/internal/geo"

@@ -891,8 +891,9 @@ async function saveFlows(){
   if(ids.some(x=>!x))throw new Error('Every flow needs an ID');
   const dup=ids.find((x,i)=>ids.indexOf(x)!==i);
   if(dup)throw new Error('Duplicate flow ID: '+dup);
-  const bad=ids.find(x=>!/^[A-Za-z0-9._-]+$/.test(x));
-  if(bad)throw new Error('Flow ID "'+bad+'" may contain only letters, digits, dot, dash and underscore');
+  // The ID is the first path segment of the link, so it cannot hold what ends one.
+  const bad=ids.find(x=>/[\s\/?#]/.test(x));
+  if(bad)throw new Error('Flow ID "'+bad+'" must not contain spaces, /, ? or #');
   await call('PUT','/api/groups',GROUPS);
   SAVED=JSON.stringify(GROUPS);
 }

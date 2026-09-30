@@ -63,9 +63,16 @@ func TestConnectionReuse(t *testing.T) {
 
 	t.Logf("%d requests, 16 concurrent: default transport opened %d connections, tuned opened %d",
 		n, openedOld.Load(), openedNew.Load())
-	if openedNew.Load() > openedOld.Load() {
-		t.Errorf("tuned transport opened more connections (%d) than the default one (%d)",
-			openedNew.Load(), openedOld.Load())
+	// The assertion is a bound, not a comparison with the default transport:
+	// how many connections *that* one opens depends on how the scheduler
+	// interleaves the workers (on a busy single-core runner it can get away
+	// with very few), so "tuned <= default" fails now and then for reasons
+	// that have nothing to do with this package. What the tuned transport
+	// guarantees is that 16 workers never need more sockets than the idle
+	// pool keeps warm.
+	if got := openedNew.Load(); got > defaultMaxIdleConnsPerHost {
+		t.Errorf("tuned transport opened %d connections for %d requests from 16 workers; want at most %d (the idle pool)",
+			got, n, defaultMaxIdleConnsPerHost)
 	}
 }
 

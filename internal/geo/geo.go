@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata" // zone names must resolve in an image that ships no zoneinfo
 )
 
 // Empty — the "no data" value.

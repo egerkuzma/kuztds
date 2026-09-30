@@ -3,6 +3,8 @@
 build:
 	go build -o bin/kuztds-engine ./cmd/engine
 	go build -o bin/kuztds-admin  ./cmd/admin
+	go build -o bin/kuztds-cron   ./cmd/cron
+	go build -o bin/kuztds-apiclient ./cmd/apiclient
 
 run:
 	go run ./cmd/engine
