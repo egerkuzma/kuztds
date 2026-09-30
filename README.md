@@ -685,7 +685,7 @@ breakdown,performance}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/log
 ```bash
 go test ./...                              # unit tests (16 packages)
 go test -tags=integration ./...            # + ClickHouse/Redis round-trips (needs make infra-up)
-go test -tags=uitest ./internal/admin/     # checks the embedded SPA's JS parses (needs node)
+go test -tags=uitest ./internal/admin/     # the embedded SPA: its JS parses, its value conversions hold (needs node)
 go vet ./...
 make bench                                 # ipindex (~10 ns/lookup) and geo lookup benchmarks
 ```
@@ -695,7 +695,9 @@ the full pipeline (all redirect types, all macros, bots, geo, filters, operators
 distribution, limits, firewall, separation, schedule, chance, api mode, and a
 traffic matrix). `internal/cron` runs every job against local HTTP servers —
 downloads in all formats, refusals of bad ones, alerts, the schedule.
-ClickHouse tests are behind the `integration` build tag and skip
+`internal/admin/web_logic_test.go` runs the admin's value conversions under
+node — word lists ↔ regular expressions, flags, output variants — so what the
+editor shows is saved back exactly. ClickHouse tests are behind the `integration` build tag and skip
 automatically when ClickHouse is unavailable. Coverage snapshot:
 [`docs/STATUS.md`](docs/STATUS.md).
 

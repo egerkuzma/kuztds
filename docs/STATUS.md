@@ -121,8 +121,9 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
   5. The helpers that convert stored values and back live in one block of the
      page that `web_logic_test.go` runs under node (`-tags=uitest`): word
      lists ↔ expressions, flags, escaping, variants, rewrites. In the browser
-     against the stand: scenario 101/101 (every flow through the editor
-     without edits leaves every condition byte-identical), drag 10/10.
+     against the stand: scenario 105/105 (every flow through the editor
+     without edits leaves every condition byte-identical; a case-sensitive
+     `/Buy|buy/` keeps both words through an edit elsewhere), drag 10/10.
 - **Fix**: country/lang/text filters also work when only `values` is set (no
   `raw`) — `router.go: cfgd()/orJoin()`.
 - **Fix (found by e2e tests, 2026-06-07):**

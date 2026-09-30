@@ -698,7 +698,7 @@ breakdown,performance}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/log
 ```bash
 go test ./...                              # юнит-тесты (16 пакетов)
 go test -tags=integration ./...            # + round-trip ClickHouse/Redis (нужен make infra-up)
-go test -tags=uitest ./internal/admin/     # проверяет, что JS встроенного SPA парсится (нужен node)
+go test -tags=uitest ./internal/admin/     # встроенный SPA: JS парсится, преобразования значений верны (нужен node)
 go vet ./...
 make bench                                 # бенчи ipindex (~10 нс/lookup) и гео-поиска
 ```
@@ -708,7 +708,10 @@ make bench                                 # бенчи ipindex (~10 нс/lookup
 распределение, лимиты, фаервол, separation, расписание, chance, api-режим и
 матрица трафика). `internal/cron` прогоняет каждую задачу против локальных
 HTTP-серверов — загрузки во всех форматах, отказ от негодных, алерты,
-расписание. ClickHouse-тесты за build-тегом `integration` и автоматически
+расписание. `internal/admin/web_logic_test.go` прогоняет под node
+преобразования значений админки — списки слов ↔ регулярные выражения, флаги,
+варианты вывода, — чтобы показанное в редакторе сохранялось обратно точно.
+ClickHouse-тесты за build-тегом `integration` и автоматически
 скипаются при недоступном ClickHouse. Снимок покрытия:
 [`docs/STATUS.ru.md`](docs/STATUS.ru.md).
 
