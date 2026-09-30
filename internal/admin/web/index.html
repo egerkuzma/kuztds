@@ -60,7 +60,7 @@
   }
 
   *{box-sizing:border-box}
-  html{scrollbar-gutter:stable}
+  html{scrollbar-gutter:stable;background:var(--bg)}
   body{margin:0;font:14px/1.5 var(--font);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;min-height:100vh}
   a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
   ::selection{background:var(--accent-soft)}
@@ -482,9 +482,9 @@ function menu(anchor,items,cls){
   m.onclick=e=>e.stopPropagation();
   document.body.appendChild(m);
   const r=anchor.getBoundingClientRect(), w=m.offsetWidth, h=m.offsetHeight;
-  let left=Math.min(r.left,innerWidth-w-8), top=r.bottom+6;
-  if(top+h>innerHeight-8)top=Math.max(8,r.top-h-6);
-  m.style.left=Math.max(8,left)+'px'; m.style.top=top+'px';
+  // Below the anchor when it fits; otherwise moved up just enough to stay on screen.
+  const left=Math.min(r.left,innerWidth-w-8), top=Math.min(r.bottom+6,innerHeight-h-8);
+  m.style.left=Math.max(8,left)+'px'; m.style.top=Math.max(8,top)+'px';
   MENU=m;
   return m;
 }
