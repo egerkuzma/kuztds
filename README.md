@@ -64,9 +64,13 @@ not like a script.**
   the hot path never blocks on disk.
 - 🛡️ **Secure by default** — argon2id passwords, server-side sessions, CSRF,
   parameterized queries, trusted-proxy `X-Forwarded-For`, JSON-only input.
-- 🎛️ **Batteries included** — a polished, **embedded** admin panel (dashboard,
-  logs with data-driven filters, conversions, a group/stream editor, `.dat`
-  editor). No Node build, no separate web server.
+- 🎛️ **Batteries included** — a polished, **embedded** admin panel: flows drawn
+  as they work (drag streams to reorder, line widths follow the traffic), a
+  visitor test that shows which rule stopped whom, dashboard, logs, conversions,
+  `.dat` editor, automation. No Node build, no separate web server.
+- 🕒 **A background service** — `cmd/cron` keeps bot IP lists and geo databases
+  fresh, checks your domains with VirusTotal, watches the disk and reports
+  conversions to Telegram.
 - 🧩 **One binary, optional deps** — ClickHouse and Redis are optional; the engine
   runs without them and simply skips the corresponding features.
 - ✅ **Genuinely tested** — unit tests + **23 end-to-end scenarios** + ClickHouse
@@ -81,11 +85,15 @@ not like a script.**
 ## Features
 
 **Traffic segmentation (per stream):**
-- Geo: country / city / region (MaxMind `.mmdb` or Cloudflare `CF-IPCountry`).
+- Geo: country / city / region / **time zone** (MaxMind-format `.mmdb`, or the
+  CDN's `CF-IPCountry` for the country).
+- Network: **ASN** and **organization** (from an ASN `.mmdb`) — e.g. keep
+  hosting networks away from an offer.
 - Device: computer / phone / tablet.
 - OS, browser (+ versions), device brand (Apple, Samsung, Xiaomi, …).
 - WAP carrier (operator) by IP ranges from `wap.dat`.
-- Language, referer, domain, keyword (`?q=`), and arbitrary IP lists.
+- Language, referer, domain, keyword (`?q=`), any **URL parameter**
+  (`utm_source=fb`), and arbitrary IP lists.
 - Yandex.Browser, uniqueness, referer presence.
 - Weekly schedule (per day of week).
 - Per-stream impression limits (per day / per rolling window).
@@ -99,10 +107,12 @@ not like a script.**
 - `save_ip`: append a detected search-engine IP back into its list.
 
 **Output & rendering:**
-- 16 redirect types (HTTP redirect, JS, meta refresh, iframe, inline HTML, error
-  pages, JSON API responses, stub, …).
+- 17 redirect types (HTTP redirect, JS, meta refresh, iframe, inline HTML, error
+  pages, JSON API responses, stub, …) — including **`group`: hand the visitor
+  to another group**, so flows can be chained.
 - A rich macro set: `[KEY] [IP] [COUNTRY] [CITY] [REGION] [LANG] [DEVICE]
-  [OPERATOR] [DOMAIN] [USERAGENT] [CID] [PAR-1..5] [()COUNTRY()] [()CITY()]
+  [OPERATOR] [DOMAIN] [USERAGENT] [CID] [ASN] [ORG] [TIMEZONE] [UTC]
+  [PAR-1..5] [()COUNTRY()] [()CITY()]
   [RANDNUM-a-b] [RANDSTR-(set)-n] [RANDLINE-(file)-n] [RANDDFL-(dir)-n]`.
 - Output-variant distribution with `|||`: `random` / `rotator` (cookie) /
   `evenly` (Redis counter).
@@ -111,8 +121,13 @@ not like a script.**
   (fetch + find/replace), `api_mac` (mac code in API responses).
 
 **Operations:**
-- Group config, IP lists, separation lists and bot signatures are re-read in the background when
-  their files change — admin edits go live without restarting the engine.
+- Group config, IP lists, separation lists, bot signatures and the geo
+  databases are re-read in the background when their files change — admin
+  edits and fresh downloads go live without restarting the engine.
+- The **cron service** (`cmd/cron`): bot IP lists from URLs (incl. the JSON
+  Google and Bing publish), MaxMind-format database downloads, VirusTotal
+  checks of the domains streams send to, free-disk alerts, keyword-file
+  cleanup, Telegram notifications for all of it and for new conversions.
 - A malformed or missing config is skipped and retried, leaving the running
   rules in place.
 
@@ -122,14 +137,17 @@ not like a script.**
 - Login rate-limit (Redis, fixed window per IP).
 
 **Analytics & admin:**
+- **Flows**: every group drawn as a trunk with a branch per stream, widths
+  following the traffic; drag to reorder; edit in a drawer; send a stream on
+  to another flow; **test a visitor** and see which condition stopped them.
 - Dashboard: KPI tiles (visits, unique, bots, conversions, profit, CR), a time
-  chart, a **performance table by group and stream** (hits / unique / bots /
+  chart, a **performance table by flow and stream** (hits / unique / bots /
   conversions / profit / CR, sortable, CSV) and breakdowns (country/device/OS/
-  browser/source).
+  browser/source/network).
 - Logs with multi-select filters loaded from real data, IP search, CSV export,
-  and country flags.
-- Conversions (postbacks), collected keywords, group/stream editor, `.dat`
-  list editor, password change. Light and dark theme.
+  country flags, and a detail view per visit (network, User-Agent, referer).
+- Conversions (postbacks), collected keywords, `.dat` list editor, an IP
+  lookup tool, the automation page, password change. Light and dark theme.
 
 ---
 
@@ -140,40 +158,44 @@ period), in-list search, country flags, CSV export, pagination:
 
 ![Logs](docs/img/logs.png)
 
-**Groups** — a group is a waterfall of streams, tried top to bottom. Each row
-reads as a rule: the switch, the conditions (chips), the output, what bots get,
-and the period's hits / bots / conversions. Drag a row to reorder, click it to
-edit; the last row is what happens when nothing matches:
+**A flow** — the group as it works. Visitors enter at the top and fall down the
+trunk; each stream is a branch to its destination; what matches nothing ends in
+the default. Line widths and the labels on them are the traffic of the selected
+period. Drag a stream by its handle to change the order:
 
-![Groups](docs/img/groups.png)
+![Flow](docs/img/flow.png)
 
-**Stream editor** — WHEN on the left (only the conditions this stream actually
-uses; "Add condition" offers the other ones), THEN on the right (output, bots),
-the rarely used parts folded into Advanced:
+**Test a visitor** — give an IP and a device and see the way through the flow:
+the matched stream in green, and on every other one the condition that turned
+the visitor away. It runs on the flows as edited, before saving:
+
+![Test a visitor](docs/img/flow-test.png)
+
+**Stream editor** — a drawer over the page. *When*: only the conditions this
+stream uses, more from "Add condition". *Then*: where to send, including another
+flow. Bots and the rare options are folded below:
 
 ![Stream editor](docs/img/stream.png)
 
-**Group settings** open above the waterfall on demand — ID and aliases, the
-default output, uniqueness, keyword collection, anti-flood, the live links the
-engine serves, and the danger zone:
+**Flows** — all of them, with the period's numbers and where they link to:
 
-![Group settings](docs/img/group-form.png)
+![Flows](docs/img/flows.png)
 
-**Dark theme** — the sun/moon button in the top bar; the choice is remembered
-per browser, and until you choose, the panel follows the system setting:
+**Automation** — the cron service: what runs, when it last ran and what it said:
 
-![Dashboard, dark theme](docs/img/dashboard-dark.png)
+![Automation](docs/img/automation.png)
 
 ---
 
 ## Architecture
 
-Three binaries, shared `internal/` packages:
+Four binaries, shared `internal/` packages:
 
 | Binary | Port | Purpose |
 |--------|------|---------|
 | `cmd/engine` | `:8080` | The hot path — traffic handling. A long-running process. |
 | `cmd/admin` | `:8090` | REST API + embedded admin SPA (`internal/admin/web`, `go:embed`). |
+| `cmd/cron` | — | Background jobs: list and geo database updates, VirusTotal, disk, Telegram. Talks to the others through files only. |
 | `cmd/apiclient` | `:9090` | Client to install on a landing/donor page (calls the engine via `?api=`). |
 
 **Request lifecycle in the engine:**
@@ -187,9 +209,11 @@ HTTP request
   ├─ IP blacklist        → 403 if listed
   ├─ resolve group by id/alias (first path segment); none → "trash" mode
   ├─ anti-flood (Redis): N requests / IP / window
-  ├─ detect device/OS/browser/brand ; geo (mmdb / CF-IPCountry) ; carrier (wap)
+  ├─ detect device/OS/browser/brand ; geo + ASN + time zone (mmdb ;
+  │  CF-IPCountry only via a trusted proxy) ; carrier (wap)
   ├─ uniqueness: cookie | Redis SETNX
   ├─ router.Select(group, visitor)  → first stream that passes all filters
+  │  └─ type "group" → the same visitor through another group (max 3 hops)
   ├─ bot detection by the SELECTED stream's toggles → bot_redirect (or skip)
   ├─ separation · fetch [REMOTE] · chance · distribution (|||) · api_mac
   ├─ render: macros + redirect type (CURL = fetch+find/replace; api = JSON);
@@ -327,7 +351,20 @@ go run ./cmd/admin
 
 Open **http://localhost:8090** and log in with `admin` and your password.
 
-### 5. Send a test request to the engine
+### 5. Run the cron service (optional)
+```bash
+KUZTDS_CRON_FILE=./cron.json \
+KUZTDS_DATA_DIR=./data KUZTDS_KEYS_DIR=./keys \
+KUZTDS_GROUPS_FILE=configs/groups.example.json \
+KUZTDS_GEO_DB=./geo/city.mmdb KUZTDS_ASN_DB=./geo/asn.mmdb \
+KUZTDS_CLICKHOUSE_ADDR=localhost:9000 KUZTDS_CLICKHOUSE_PASSWORD=devpassword \
+go run ./cmd/cron
+```
+Give the engine and the admin the same `KUZTDS_GEO_DB` / `KUZTDS_ASN_DB`, and the
+admin the same `KUZTDS_CRON_FILE`; then everything it does is configured on the
+**Automation** page. Nothing runs until a job is switched on there.
+
+### 6. Send a test request to the engine
 ```bash
 curl -i 'http://localhost:8080/promo?q=hello' \
   -H 'X-Forwarded-For: 8.8.8.8' \
@@ -354,7 +391,9 @@ written to files in the repo**. Full reference: [`docs/USAGE.md`](docs/USAGE.md)
 | `KUZTDS_DATA_DIR` | directory of `.dat` lists (IP, wap, signatures, separation) |
 | `KUZTDS_GROUPS_FILE` | JSON groups config (source of truth) |
 | `KUZTDS_TRUSTED_PROXIES` | trusted proxy CIDRs for `XFF`/`CF` (comma-separated) |
-| `KUZTDS_GEO_DB` | path to a MaxMind `.mmdb` (optional; else `CF-IPCountry`) |
+| `KUZTDS_GEO_DB` | path to a MaxMind-format City or Country `.mmdb` (optional; without it the country comes from `CF-IPCountry`) |
+| `KUZTDS_ASN_DB` | path to a MaxMind-format ASN `.mmdb` (optional; enables the ASN / organization filters) |
+| `KUZTDS_RELOAD_INTERVAL` | how often changed files are re-read (default `1m`) |
 | `KUZTDS_REDIS_ADDR` / `_PASSWORD` | Redis (uniq/limit/firewall) |
 | `KUZTDS_CLICKHOUSE_ADDR` / `_DB` / `_USER` / `_PASSWORD` | ClickHouse (logs) |
 | `KUZTDS_POSTBACK_KEY` | key for the `?pb=` postback |
@@ -397,6 +436,16 @@ TimeoutStopSec=30
 | `KUZTDS_ADMIN_PASSWORD_FILE` | hash file (takes priority; UI password changes are written here) |
 | `KUZTDS_ENGINE_URL` | engine base URL (for group links in the UI) |
 | `KUZTDS_GROUPS_FILE` / `KUZTDS_DATA_DIR` / `KUZTDS_KEYS_DIR` | same paths as the engine |
+| `KUZTDS_GEO_DB` / `KUZTDS_ASN_DB` | same paths as the engine (IP lookup, visitor test) |
+| `KUZTDS_CRON_FILE` | the cron service's config file (enables the Automation page) |
+
+### Cron service
+| Variable | Purpose |
+|----------|---------|
+| `KUZTDS_CRON_FILE` | its config (JSON, written by the admin; default `cron.json`). State is kept next to it in `<file>.status.json` |
+| `KUZTDS_DATA_DIR` / `KUZTDS_KEYS_DIR` / `KUZTDS_GROUPS_FILE` | same paths as the engine |
+| `KUZTDS_GEO_DB` / `KUZTDS_ASN_DB` | where downloaded databases are put — the config chooses what to download, never where to write |
+| `KUZTDS_CLICKHOUSE_*` | only for conversion notifications |
 
 ### Groups config (JSON)
 A group is reachable at `/<id>` (and at each alias). Example shape:
@@ -438,13 +487,17 @@ file leaves the running config untouched. See `configs/groups.example.json` and
 
 ## Core concepts
 
-- **Group** — a routing target reachable at `/<id>`. It holds defaults
-  (`redirect`/`out`/`header`), uniqueness/firewall settings, and a list of
-  **streams**.
+- **Group** — a routing target reachable at `/<id>`; the admin panel calls it
+  a **flow**. It holds defaults (`redirect`/`out`/`header`),
+  uniqueness/firewall settings, and a list of **streams**.
 - **Stream** — a set of **rules** (predicates) plus an **output**. The router
   picks the **first active stream that passes all of its rules**; order matters.
 - **Rules are data** — each filter is a value with a flag; the router evaluates
   them in a loop. If no stream matches, the group defaults / `trash` mode apply.
+- **Group links** — a stream (or a group's default) of type `group` hands the
+  visitor to another group, whose streams are then tried with the same visitor.
+  Chains are limited to three hops; a link to a missing or disabled group
+  answers like an unknown group.
 - **Trash mode** — what to return for an unknown/disabled group: `200` empty,
   redirect, `403`, or `404`.
 
@@ -461,9 +514,12 @@ filters never block traffic):
 | `1` | **exclude** — reject on match (blacklist) | block this device/operator |
 | `2` | **include** — reject on absence of a match (whitelist) | require (whitelist) |
 
-In the UI these read **off / exclude / include**. `lang`/`country` use
-"contains" semantics; `city`/`region`/`brand` use exact match; `ua`/`referer`/
-`key` accept `/regex/` or a substring; `os`/`browser` match over `"name version"`.
+In the UI these read **is / is not**; a condition that is not on the stream is
+off. `lang`/`country` use "contains" semantics; `city`/`region`/`brand` use
+exact match; `ua`/`referer`/`key`/`org` accept `/regex/` or a substring;
+`os`/`browser` match over `"name version"`; `asn` takes numbers (`AS15169` or
+`15169`); `timezone` takes UTC offsets (`+3`, `+5:30`) or zone names
+(`Europe/Moscow`); `get` takes `name` (present) or `name=value`.
 
 ---
 
@@ -484,11 +540,13 @@ In the UI these read **off / exclude / include**. `lang`/`country` use
 | `api` | `200` JSON `{out,type,country,device,…}` (for api clients) |
 | `show_out` | `200` JSON `{out,type:1,mac}` |
 | `curl` | fetch a URL server-side, apply find/replace, return the body |
+| `group` | hand the visitor to the group named in `out` |
 
 **Macros** (expanded in `out`):
 
 `[KEY]` (url-encoded keyword) · `[PATH]` (host) · `[IP]` · `[COUNTRY]` `[CITY]`
-`[REGION]` · `[LANG]` · `[DEVICE]` · `[OPERATOR]` · `[DOMAIN]` · `[USERAGENT]` ·
+`[REGION]` · `[ASN]` `[ORG]` (url-encoded) · `[TIMEZONE]` `[UTC]` · `[LANG]` ·
+`[DEVICE]` · `[OPERATOR]` · `[DOMAIN]` · `[USERAGENT]` ·
 `[CID]` (click id, for postbacks) · `[PAR-1..5]` (extra GET params) ·
 `[()COUNTRY()]` `[()CITY()]` · `[RANDNUM-a-b]` · `[RANDSTR-(charset)-n]` ·
 `[RANDLINE-(file)-n[/u]]` · `[RANDDFL-(dir)-n[/u]]`.
@@ -534,36 +592,41 @@ the result (redirect or content).
 
 ## Admin web interface
 
-A single embedded SPA (GitHub-style theme, light and dark, English UI). Layout:
-**left sidebar** navigation, **top-right** period picker, theme toggle, settings
-gear, user, and log-out.
+A single embedded page (light and dark theme, English UI), no build step. One
+**top bar** carries the navigation, the period picker, the theme toggle and the
+user menu; there are no sidebars. Every page has an address (`#/flows/promo`),
+so back/forward and links work. Whatever can be edited is compared with what
+was last saved, and a bar at the bottom offers **Save** / **Discard** on any
+page — drafts survive moving around the panel.
 
 - **Dashboard** — six KPI tiles (visits, unique, bots, conversions, profit, CR),
-  a time chart with hover values, a **performance table** by group and stream
-  (hits / unique / bots / conversions / profit / CR, sortable, CSV export, the
-  "no match → group default" line per group), and breakdowns by country,
-  device, OS, browser and source.
-- **Logs** — multi-select filters (group/stream/country/device/OS/browser/brand)
-  whose values are loaded from the data for the selected period, in-list search,
-  IP field, humans/bots toggle, country flags, pagination, CSV export.
-- **Conversions** — postbacks and total profit for a period.
-- **Keywords** — collected keywords per group/date.
-- **Groups** — a collapsible group→stream tree with search on the left (hits
-  per group and stream for the period), and a pane on the right that shows
-  either the group's **waterfall** — one row per stream in matching order:
-  on/off switch, condition chips, output, what bots get, hits / bots /
-  conversions; drag to reorder, click to edit; a "no match" row for the group
-  default; group settings fold out above it — or one stream's editor: **When**
-  (only the configured conditions, "Add condition" for the rest; 19 kinds:
-  geo, device, brand, WAP operator, OS, browser, Yandex Browser, UA / referer /
-  domain / keyword / language text, IP list, unique, referer present, schedule,
-  impression limit) and **Then** (redirect type, distribution, out), **Bots**
-  (signal chips, what to serve them) and a folded **Advanced** (show chance,
-  separation, `[REMOTE]`, CURL find/replace, API mac). Both panes scroll
-  internally, so picking a stream never moves the page. Unsaved-changes
-  marker, `Ctrl`+`S`, leave/close guards.
-- **Lists** — editor for `.dat` files (IP bases, WAP operators, signatures).
-- **Settings** (gear) — change the admin password, switch the theme.
+  a time chart with hover values, the **performance table** by flow and stream
+  (sortable, CSV, click to open the flow), breakdowns by country, device, OS,
+  browser, source and network.
+- **Flows** — cards for every group with the period's numbers. A flow's page
+  draws it as it works: the entry, a **trunk** the visitors fall down, a
+  **branch** per stream to its destination, the default at the bottom; widths
+  and labels are the traffic of the period. Drag a stream by its handle to
+  reorder, flip its switch, duplicate it or move it to another flow from its
+  menu. Click a stream to edit it in a **drawer**: *When* (only the conditions
+  it carries; 23 kinds behind "Add condition" — geo, time zone, ASN,
+  organization, operator, IP list, device, brand, OS, browser, language,
+  referer, domain, keyword, URL parameter, User-Agent, unique, days of week,
+  impression limit), *Then* (type, output, variants — or another flow), *Bots*,
+  *Advanced*, and a note shown on the canvas.
+- **Test a visitor** (on a flow's page) — IP, device, country, language,
+  referer, keyword, URL parameters → the path through the flow, the matched
+  stream, and for every other stream the condition that stopped the visitor.
+  Works on unsaved edits and follows links to other flows.
+- **Logs** — multi-select filters whose values are loaded from the data of the
+  period, IP field, humans/bots, CSV export; a row opens the visit's detail.
+- **Conversions** — postbacks and total profit. **Keywords** — collected per
+  flow and day. **Lists** — editor for `.dat` files.
+- **Tools** — what the engine learns from an IP: location, network, which
+  lists it is in, and the state of the geo databases.
+- **Automation** — the cron service: a card per job with its switch, interval,
+  settings, last result and "Run now"; Telegram with a test message.
+- **Settings** (user menu) — change the admin password, switch the theme.
 
 ---
 
@@ -585,14 +648,15 @@ gear, user, and log-out.
 `GET /api/me`, `POST /api/password`, `GET /api/stats/{summary,timeseries,
 breakdown,performance}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/logs/export`,
 `DELETE /api/logs`, `GET /api/postbacks`, `GET /api/keys`,
-`GET|PUT /api/groups`, `GET /api/lists`, `GET|PUT /api/lists/{name}`.
+`GET|PUT /api/groups`, `GET /api/lists`, `GET|PUT /api/lists/{name}`,
+`GET /api/lookup`, `POST /api/simulate`, `GET|PUT /api/cron`, `POST /api/cron/run`.
 
 ---
 
 ## Testing
 
 ```bash
-go test ./...                              # unit tests (15 packages)
+go test ./...                              # unit tests (16 packages)
 go test -tags=integration ./...            # + ClickHouse/Redis round-trips (needs make infra-up)
 go test -tags=uitest ./internal/admin/     # checks the embedded SPA's JS parses (needs node)
 go vet ./...
@@ -614,12 +678,15 @@ automatically when ClickHouse is unavailable. Coverage snapshot:
 cmd/
   engine/       hot path (traffic handling)
   admin/        REST API + embedded SPA
+  cron/         background service
   apiclient/    landing/donor client
 internal/
   ipindex/      CIDR index O(log n) + list manager with hot-reload
   config/       group/stream model + JSON loader (hot-reload)
   seplist/      separation lists in memory (hot-reload)
-  geo/          MMDB (MaxMind) / Nop resolver
+  geo/          MaxMind-format databases (City/Country + ASN), hot-reloaded
+  cron/         the background jobs and their config
+  atomicfile/   write-then-rename
   detect/       device + OS/browser/brand + bots, signatures
   router/       stream selection (predicates)
   render/       output macros + all redirect types
@@ -640,7 +707,8 @@ docs/                    USAGE / ARCHITECTURE / SECURITY / STATUS (+ *.ru.md)
 ## Security
 
 argon2id passwords · server-side sessions · CSRF on unsafe methods · login
-rate-limit · trusted-proxy XFF handling · parameterized ClickHouse queries ·
+rate-limit · trusted-proxy handling for XFF **and** `CF-IPCountry` ·
+parameterized ClickHouse queries ·
 strict `.dat` filename validation (no path traversal) · JSON-only input · secrets
 via env only. Full model: [`docs/SECURITY.md`](docs/SECURITY.md).
 
@@ -648,9 +716,9 @@ via env only. Full model: [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## Roadmap
 
-Planned: a cron service (bot IP-list updates, VirusTotal domain checks, disk
-monitoring + Telegram alerts), more geo filters (ASN/organization/timezone),
-Telegram conversion notifications, and more. See [`TODO.md`](TODO.md).
+Not done yet: a second factor (TOTP) for the admin login, a settings page for
+the api client, a fourth device category (Smart TV), version ranges in OS /
+browser filters. See [`TODO.md`](TODO.md).
 
 ---
 

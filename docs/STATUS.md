@@ -2,7 +2,7 @@
 
 # STATUS — where we are and how to continue
 
-Snapshot as of 2026-09-08. For details: `docs/USAGE.md`, `TODO.md`.
+Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
 
 ## Done (in `main`, tests green)
 - **Phases 1–7**: ipindex (+hot-reload), realip, geo (mmdb/Nop) + detect
@@ -39,6 +39,43 @@ Snapshot as of 2026-09-08. For details: `docs/USAGE.md`, `TODO.md`.
 - **Fix (2026-09-08)**: "Clear logs" deleted by `group_name` while the panel
   sent the group's **ID** — with a display name set, nothing was deleted.
   `DeleteGroupLogs` keys on `group_id` now (`clickhouse.go`).
+- **2026-09-30 — geo, cron, flows** (one branch, five commits):
+  1. **Geo from MaxMind-format databases.** `geo.DB` reads a City/Country file
+     (`KUZTDS_GEO_DB`) and an ASN file (`KUZTDS_ASN_DB`) into memory and swaps
+     them when the files change; a corrupt replacement never blanks the data.
+     New stream conditions: `asn`, `org`, `timezone` (UTC offset or zone name),
+     `get` (URL parameter). New macros `[ASN] [ORG] [TIMEZONE] [UTC]`. Events
+     carry `asn/org/timezone` (columns added on start; an old schema is
+     tolerated). Verified against GeoLite2 test databases and live against
+     DB-IP Lite (no time zone and no region ISO codes in that one — the region
+     falls back to its name).
+  2. **`CF-IPCountry` is trusted only through a trusted proxy**, and the
+     group's `geo` setting now decides which source wins (`cf` = header first,
+     otherwise the database first). Before, the header was read from any
+     visitor and the setting did nothing.
+  3. **Block 5 — the cron service** (`cmd/cron`, `internal/cron`): bot IP lists
+     (plain, sectioned, Google/Bing JSON; replace/merge), geo database
+     downloads (`.mmdb` / `.gz` / `.tar.gz`, validated before the rename),
+     VirusTotal (alert once per domain, optional stream switch-off), disk
+     space, keyword cleanup, conversion alerts, Telegram. File-based config,
+     status and "run now"; secrets masked in the API. Run end to end on the
+     stand against the real Google, Bing and DB-IP endpoints.
+  4. **Group links**: redirect type `group` hands the visitor to another group
+     (≤ 3 hops, broken links answer like an unknown group); the event records
+     the forwarding stream (`via`) and `Performance` counts it there too.
+  5. **Admin API**: `GET /api/lookup`, `POST /api/simulate` (walks a visitor
+     through the groups sent in the request; `router.Why` names the rejecting
+     rule), `GET|PUT /api/cron`, `POST /api/cron/run`. CSV export defuses
+     spreadsheet formulas.
+  6. **The interface, rebuilt** — top navigation (no sidebars), hash routing,
+     the flow canvas (trunk, branches, traffic-proportional wires, drag to
+     reorder), drawer editors, "Test a visitor", Tools, Automation, one save
+     bar with drafts that survive navigation. Streams got a note and a
+     Content-Type override, flows can be duplicated, streams moved between
+     flows, the uniqueness window is entered in hours. Checked in a real
+     browser: a 69-step scenario against the live admin (round trip of every
+     stream and flow through its form, conditions, links, reorder, simulate,
+     save and read back, automation, theme).
 - **Fix**: country/lang/text filters also work when only `values` is set (no
   `raw`) — `router.go: cfgd()/orJoin()`.
 - **Fix (found by e2e tests, 2026-06-07):**
@@ -132,35 +169,30 @@ Snapshot as of 2026-09-08. For details: `docs/USAGE.md`, `TODO.md`.
   Worth remembering before stacking PRs again: merged into a branch is not
   merged.
 
-## Tests (coverage as of 2026-09-07)
+## Tests (coverage as of 2026-09-30)
 Run: `go test ./...` (unit) and `go test -tags=integration ./...` (with
 CH+Redis). `go vet ./...` — clean. Coverage command:
-`go test -tags=integration ./... -cover`.
+`go test -tags=integration ./... -cover` (ClickHouse up).
 
 | Package | Coverage | Note |
 |---------|:--:|---|
 | internal/fetch | 98.6% | httptest + `now` override for TTL |
 | internal/logbuf | 90.9% | |
+| internal/cron | 89.0% | every job against local HTTP servers; config, secrets, schedule, run-now |
+| internal/geo | 88.8% | MaxMind test databases (City, Country, ASN), reload, offsets |
+| internal/router | 87.6% | + asn/org/timezone/get filters, `Why` |
 | internal/security | 87.3% | |
 | internal/ipindex | 83.7% | |
-| internal/geo | 82.6% | mmdb test |
-| internal/router | 81.9% | + regression country/lang values-only |
+| internal/server | 88.9% | |
+| internal/store | 80.6% | miniredis (Counters/sessions) + CH under `-tags=integration` |
 | internal/seplist | 80.5% | separation lists in memory, hot-reload, malformed lines |
 | internal/detect | 80.5% | |
 | internal/render | 80.5% | |
 | internal/config | 80.0% | |
-| internal/store | 77.0% * | miniredis (Counters/sessions) + CH under `-tags=integration` |
-| internal/admin | 75.2% | login/CSRF/groups/lists/keys/password/export + file stores + SPA (web_test.go) |
-| internal/server | 73.2% | |
-| cmd/engine | 72.1% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios: all redirect types, all macros, bots, geo, filters, operators, distribution, limits, firewall, separation, schedule, chance, api mode, traffic matrix) |
-| cmd/apiclient | 71.6% | round-trip with a fake TDS (`newClientHandler`) |
-| cmd/admin | 0% | only the `main()` wiring; the logic is in internal/admin |
-
-\* `internal/store` measured 27.5% on 2026-09-07 with ClickHouse down (the
-`integration` tests skip; plain `go test ./... -cover`). The 77.0% shown is the
-last run with ClickHouse up, from 2026-06-07 — before #14 (`TakeLimit`), #21
-and #23 touched the package, so treat it as a stale upper reference, not the
-current figure.
+| internal/admin | 78.5% | login/CSRF/groups/lists/keys/password/export, lookup, simulate, cron endpoints, SPA (web_test.go) |
+| cmd/engine | 74.5% | httptest pipeline + helpers + **e2e_test.go** (23 end-to-end scenarios) + geo sources, group links |
+| cmd/apiclient | 71.8% | round-trip with a fake TDS (`newClientHandler`) |
+| cmd/admin, cmd/cron | 0% | only the `main()` wiring; the logic is in internal/ |
 
 Refactor for testability: hot-path handlers were extracted from `main()`
 closures into `cmd/engine/handler.go` (`engineDeps.root`) and `cmd/apiclient`
@@ -168,11 +200,9 @@ closures into `cmd/engine/handler.go` (`engineDeps.root`) and `cmd/apiclient`
 (`go test -tags=integration ./internal/store/`), skipped when CH is unavailable.
 
 ## Remaining
-- **Block 5 — cron** (NOT started): bot IP-list updates, VirusTotal, disk
-  monitoring + Telegram, cleanup.
-- **1.0.x features** (see `TODO.md`): ASN/organization/timezone (geo), GET
-  filter, "Other devices", eval redirect, Telegram conversion notifications,
-  versions in OS/browser filters `windows:7;10`, group cloning.
+See `TODO.md`: a second factor for the admin login, a settings page for the
+api client, a fourth device category, version ranges in OS/browser filters,
+deployment packaging (Dockerfile, production compose, systemd units).
 
 ## How to run again (dev)
 ```bash
@@ -195,10 +225,18 @@ KUZTDS_GROUPS_FILE=configs/test_groups.json KUZTDS_DATA_DIR=../database KUZTDS_K
 KUZTDS_REDIS_ADDR=localhost:6379 KUZTDS_CLICKHOUSE_ADDR=localhost:9000 \
 KUZTDS_CLICKHOUSE_DB=kuztds KUZTDS_CLICKHOUSE_USER=kuztds KUZTDS_CLICKHOUSE_PASSWORD=devpassword \
 go run ./cmd/admin
+
+# cron (optional; add KUZTDS_CRON_FILE / KUZTDS_GEO_DB / KUZTDS_ASN_DB to the admin too,
+# and the two geo paths to the engine)
+KUZTDS_CRON_FILE=/tmp/kuztds-cron.json KUZTDS_DATA_DIR=../database KUZTDS_KEYS_DIR=/tmp/kuztds-keys \
+KUZTDS_GROUPS_FILE=configs/test_groups.json \
+KUZTDS_GEO_DB=/tmp/kuztds-geo/city.mmdb KUZTDS_ASN_DB=/tmp/kuztds-geo/asn.mmdb \
+KUZTDS_CLICKHOUSE_ADDR=localhost:9000 KUZTDS_CLICKHOUSE_PASSWORD=devpassword \
+go run ./cmd/cron
 ```
-The ClickHouse schema is applied automatically from `migrations/clickhouse/*.sql`.
-For an existing DB, apply migrations 002/003 via
-`docker exec -i <clickhouse-container> clickhouse-client ... --multiquery < file`.
+The ClickHouse schema is applied automatically from `migrations/clickhouse/*.sql`
+on a fresh database; on an existing one the engine and the admin add the newer
+columns themselves at start.
 
 ## Notes
 - The admin and the engine must point to the SAME `KUZTDS_GROUPS_FILE`. The
