@@ -3,6 +3,8 @@
 build:
 	go build -o bin/kuztds-engine ./cmd/engine
 	go build -o bin/kuztds-admin  ./cmd/admin
+	go build -o bin/kuztds-cron   ./cmd/cron
+	go build -o bin/kuztds-apiclient ./cmd/apiclient
 
 run:
 	go run ./cmd/engine
@@ -11,7 +13,7 @@ test:
 	go test ./...
 
 bench:
-	go test ./internal/ipindex/ -bench=. -benchmem
+	go test ./internal/ipindex/ ./internal/geo/ -run=^$$ -bench=. -benchmem
 
 lint:
 	golangci-lint run

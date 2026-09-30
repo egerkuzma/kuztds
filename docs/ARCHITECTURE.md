@@ -2,11 +2,13 @@
 
 # KuzTDS architecture
 
-Up to date as of 2026-09-07. Progress snapshot — `docs/STATUS.md`.
+Up to date as of 2026-09-30. Progress snapshot — `docs/STATUS.md`.
 
-## Three binaries
+## Four binaries
 - `cmd/engine` (:8080) — the hot path (traffic handling). A long-running process.
 - `cmd/admin` (:8090) — REST API + embedded SPA (`internal/admin/web`, go:embed).
+- `cmd/cron` — the background service (`internal/cron`): list and geo database
+  updates, VirusTotal, disk monitoring, cleanup, Telegram. No port.
 - `cmd/apiclient` (:9090) — client for a landing/donor page: collects visitor
   data → calls the engine `?api=` → applies the response.
 
@@ -30,12 +32,17 @@ HTTP request
   │
   ├─ anti-flood (Redis): N requests/IP per window
   │
-  ├─ detect.Parse(ua) → device/OS/browser/brand ; geo.Resolve(ip) (+CF-IPCountry)
+  ├─ detect.Parse(ua) → device/OS/browser/brand
+  ├─ geo.Resolve(ip) → country/city/region/time zone + ASN/organization ;
+  │     CF-IPCountry only when the request came through a trusted proxy ;
+  │     the group's `geo` decides which country source wins
   ├─ ipindex.Lookup(ip, wap) → operator
   │
   ├─ uniqueness: cookie | Redis SETNX
   │
   ├─ router.Select(group, visitor)           → pick a stream by data rules
+  │     type "group" → take the target group and select again (≤ 3 hops);
+  │     the event records the first forwarding stream in `via`
   │
   ├─ bot detection BY THE TOGGLES OF THE SELECTED STREAM (UA/referer/PTR/empty/
   │     ipv6/ua_blacklist/SE IP lists/save_ip) → bot_redirect (or skip)
@@ -60,20 +67,22 @@ specific stream; bot_redirect serves bots a separate output.
 | `ipindex` | CIDR index O(log n) + list manager with hot-reload |
 | `config` | group/stream model (data rules) + JSON loader with aliases, atomic swap on hot-reload |
 | `seplist` | separation lists ("key;out") held in memory with hot-reload |
-| `geo` | Resolver: MMDB (MaxMind) / Nop |
+| `geo` | Resolver: `DB` — MaxMind-format City/Country + ASN databases read into memory and swapped atomically when the files change — or `Nop`; UTC-offset helpers |
+| `cron` | the background jobs, their config (JSON), status file and "run now" queue |
+| `atomicfile` | write to a temp file in the same directory, then rename |
 | `detect` | device + OS/browser/brand (mileusna/useragent) + bots, signatures with hot-reload |
-| `router` | stream selection (predicates), filters lang/country/.../os/browser/brand/schedule/limit |
+| `router` | stream selection (predicates): lang/country/…/os/browser/brand/asn/org/timezone/get/schedule/limit; `Why` names the rule that rejected a visitor |
 | `render` | output macros + all redirect types |
 | `fetch` | HTTP client with an in-memory TTL cache (CURL redirect, `[REMOTE]`) |
 | `store` | ClickHouse (logs/postbacks/stats) + Redis (uniq/limit/firewall/rotate/sessions) |
 | `logbuf` | async event buffer → batch insert into ClickHouse |
 | `security` | argon2id, tokens/sessions, CSRF, constant-time |
 | `server` | realip middleware (trusted proxies) |
-| `admin` | HTTP handlers, file stores (groups/.dat/keys), embedded SPA |
+| `admin` | HTTP handlers, file stores (groups/.dat/keys), IP lookup, visitor simulator, cron config, embedded SPA |
 
 ## Key principles
-1. **State in process memory** (IP indexes, config, signatures, geo), refreshed
-   in the background — routing decisions read no files.
+1. **State in process memory** (IP indexes, config, signatures, geo
+   databases), refreshed in the background — routing decisions read no files.
 2. **Hot path free of extra blocking I/O**: logs async; counters in Redis;
    external calls (CURL/remote/PTR) with timeouts.
 
@@ -93,11 +102,39 @@ specific stream; bot_redirect serves bots a separate output.
   on the same `KUZTDS_RELOAD_INTERVAL` ticker as the `.dat` lists. No restart.
 - The admin reads/writes the file on requests to `/api/groups` (live). The same
   file must be given to both the engine and the admin.
+- Geo databases: `KUZTDS_GEO_DB` (City or Country) and `KUZTDS_ASN_DB`, in the
+  MaxMind format. They are held in memory and re-read when the files change —
+  which is how a download by the cron service goes live.
 - Secrets/settings — via `KUZTDS_*` environment variables (see `docs/USAGE.md`).
+  The exception is the cron config, which the admin panel edits: it holds the
+  Telegram token and API keys, is written `0600`, and is git-ignored.
+
+## The cron service
+`cmd/cron` shares no connection with the engine or the admin — only files:
+
+- **config** `KUZTDS_CRON_FILE` (JSON): written by the admin (`PUT /api/cron`),
+  re-read by the service on every tick (5 s), validated before anything runs;
+- **status** `<config>.status.json`: written by the service after every job —
+  last run, result, next run, a heartbeat — and read by the admin;
+- **run now** `<config>.run`: the admin appends a job name, the service
+  consumes the file on its next tick;
+- **output**: `.dat` lists in `KUZTDS_DATA_DIR`, databases at `KUZTDS_GEO_DB` /
+  `KUZTDS_ASN_DB`, the groups file — all of which the engine hot-reloads.
+
+Each job runs in its own goroutine, one instance at a time, so a slow
+VirusTotal pass does not delay the disk check. The schedule survives a restart
+(the status file holds the next run of each job). Every download is checked
+before it replaces a working file: an IP source that yields no addresses is
+refused, a database is opened and its type compared with the slot it is meant
+for. Writes go through a temp file and a rename.
 
 ## Storage
 - **ClickHouse**: `events` (logs) + `postbacks`. Partitions by date, TTL for
-  auto-cleanup (migrations in `migrations/clickhouse`).
+  auto-cleanup (migrations in `migrations/clickhouse`). The network columns
+  (`asn`, `org`, `timezone`, `via`) were added later: the engine and the admin
+  run the `ALTER … ADD COLUMN IF NOT EXISTS` on start and fall back to the old
+  column set if it is refused, so an upgrade needs no manual migration and
+  cannot cost events.
 - **Redis**: uniq / limit / firewall / rotate (evenly) / admin sessions / login
   rate-limit.
 

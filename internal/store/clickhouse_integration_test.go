@@ -153,8 +153,35 @@ func TestCHRoundTrip(t *testing.T) {
 		t.Errorf("Postback cid = %q, expected cid_a", pb[0].CID)
 	}
 
-	// Performance: s1 = 2 hits / 1 unique / 0 bots / 1 conversion of 2.5;
-	// s2 = 1 hit, a bot, no conversions.
+	// The network columns exist after ensureSchema and round-trip through Logs.
+	if !ch.NetworkColumns() {
+		t.Fatal("asn/org/timezone/via columns missing after ensureSchema")
+	}
+	// A visit that entered through <group>/s1 and was served by another group:
+	// it is logged there, and counted here as forwarded by s1.
+	fwd := logbuf.Event{Ts: now, GroupID: group + "_b", GroupName: group, Stream: "landed", Device: "phone",
+		Country: "de", Uniq: 1, IP: "3.3.3.3", CID: "cid_f", ASN: 3320, Org: "Deutsche Telekom AG",
+		Timezone: "Europe/Berlin", Via: group + "/s1"}
+	if err := ch.InsertEvents(ctx, []logbuf.Event{fwd}); err != nil {
+		t.Fatalf("InsertEvents (forwarded): %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	netRows, _, err := ch.Logs(ctx, LogFilter{From: from, To: to, Group: []string{group}, Country: []string{"de"}, Limit: 10})
+	if err != nil || len(netRows) != 1 {
+		t.Fatalf("Logs (network row): %v, %d rows", err, len(netRows))
+	}
+	if r := netRows[0]; r.ASN != 3320 || r.Org != "Deutsche Telekom AG" || r.Timezone != "Europe/Berlin" {
+		t.Errorf("network fields = %d %q %q", r.ASN, r.Org, r.Timezone)
+	}
+	if kv, err := ch.Breakdown(ctx, from, to, "org", 1000); err != nil || !containsKey(kv, "Deutsche Telekom AG") {
+		t.Errorf("Breakdown by org: %v, %v", kv, err)
+	}
+	if kv, err := ch.Breakdown(ctx, from, to, "asn", 1000); err != nil || !containsKey(kv, "AS3320") {
+		t.Errorf("Breakdown by asn: %v, %v", kv, err)
+	}
+
+	// Performance: s1 = 2 own hits + 1 forwarded / 2 unique / 0 bots / 1
+	// conversion of 2.5; s2 = 1 hit, a bot, no conversions.
 	perf, err := ch.Performance(ctx, from, to)
 	if err != nil {
 		t.Fatalf("Performance: %v", err)
@@ -165,8 +192,8 @@ func TestCHRoundTrip(t *testing.T) {
 			got[p.Stream] = p
 		}
 	}
-	if s1 := got["s1"]; s1.Hits != 2 || s1.Unique != 1 || s1.Bots != 0 || s1.Conv != 1 || s1.Profit != 2.5 {
-		t.Errorf("Performance s1 = %+v, expected 2/1/0 hits/uniq/bots, 1 conv of 2.5", s1)
+	if s1 := got["s1"]; s1.Hits != 3 || s1.Forwarded != 1 || s1.Unique != 2 || s1.Bots != 0 || s1.Conv != 1 || s1.Profit != 2.5 {
+		t.Errorf("Performance s1 = %+v, expected 3 hits (1 forwarded) / 2 unique / 0 bots, 1 conv of 2.5", s1)
 	}
 	if s2 := got["s2"]; s2.Hits != 1 || s2.Bots != 1 || s2.Conv != 0 {
 		t.Errorf("Performance s2 = %+v, expected 1 hit, 1 bot, 0 conv", s2)
@@ -178,7 +205,8 @@ func TestCHRoundTrip(t *testing.T) {
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		_, left, _ := ch.Logs(ctx, LogFilter{From: from, To: to, Group: []string{group}, Limit: 10})
+		// The forwarded visit belongs to another group id and must stay.
+		_, left, _ := ch.Logs(ctx, LogFilter{From: from, To: to, Group: []string{group}, Stream: []string{"s1", "s2"}, Limit: 10})
 		if left == 0 || time.Now().After(deadline) {
 			if left != 0 {
 				t.Errorf("DeleteGroupLogs: %d rows still present after 10 s", left)
@@ -186,6 +214,9 @@ func TestCHRoundTrip(t *testing.T) {
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+	if _, kept, _ := ch.Logs(ctx, LogFilter{From: from, To: to, Group: []string{group}, Stream: []string{"landed"}, Limit: 10}); kept != 1 {
+		t.Errorf("DeleteGroupLogs removed another group's row: %d left, expected 1", kept)
 	}
 }
 

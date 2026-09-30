@@ -24,7 +24,12 @@ A normative document: requirements + what's already done (✅) and what's planne
   `RemoteAddr` is in `KUZTDS_TRUSTED_PROXIES` (CIDR); takes the rightmost
   untrusted address from XFF (CF-Connecting-IP has priority). Otherwise —
   `RemoteAddr`.
-- ✅ `CF-IPCountry` is used as a country source (meaningful behind a trusted edge).
+- ✅ `CF-IPCountry` is a country source **only when the request came through a
+  trusted proxy** — the same condition as `X-Forwarded-For`
+  (`server.ViaTrustedProxy`). From a direct visitor it is ignored: otherwise
+  anyone could name their own country and pick their own stream. Whether the
+  header or the geo database wins when both answer is the group's `geo`
+  setting; the value is validated as two characters either way.
 - ⏳ Auto-updating the Cloudflare CIDR list (currently set statically via env).
 
 ## 3. Admin authentication
@@ -78,6 +83,12 @@ A normative document: requirements + what's already done (✅) and what's planne
   or empty one is an error — the old silent fallback restored the previous
   password.
 - ⏳ Forced change of the default password on first start.
+- ✅ Secrets the panel manages (Telegram bot token, VirusTotal key, geo
+  database license key) are **write-only** over the API: `GET /api/cron`
+  returns `********` in their place, and a `PUT` that sends the mask back keeps
+  the stored value. A geo source is matched by kind and URL, not by row
+  position, so a stored key cannot be redirected to a different host by
+  reordering rows.
 - ⏳ TOTP (RFC 6238) and admin IP allowlist.
 
 ## 4. Data queries
@@ -86,6 +97,9 @@ A normative document: requirements + what's already done (✅) and what's planne
 - ✅ Redis: keys from validated identifiers (group/stream id).
 - ✅ `.dat` file names are validated (`^[a-zA-Z0-9._-]+\.dat$`, no `..`); keys/
   dates in `/api/keys` — by a character whitelist.
+- ✅ The CSV log export prefixes cells that begin with `=`, `+`, `-` or `@` with
+  an apostrophe: keyword, referer and User-Agent are visitor-controlled, and a
+  spreadsheet would otherwise run them as formulas.
 
 ## 5. Secrets and data
 - ✅ Secrets — via `KUZTDS_*` environment variables, not in code/VCS.
@@ -93,6 +107,10 @@ A normative document: requirements + what's already done (✅) and what's planne
   (exception — the test `internal/geo/testdata/*.mmdb`).
 - The groups config is a JSON file `KUZTDS_GROUPS_FILE` (not yaml); example —
   `configs/*.json`.
+- ✅ The cron config (`KUZTDS_CRON_FILE`) holds the Telegram token and API keys:
+  it is written `0600` through a temp file and a rename, and `cron.json*` is
+  git-ignored. The bot token never reaches a log or the status file — it is
+  part of the request URL, and transport errors are rebuilt without the URL.
 
 ## 6. Network and headers
 - ✅ Admin security headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy`.
@@ -125,8 +143,18 @@ A normative document: requirements + what's already done (✅) and what's planne
   `[RANDLINE-(secret.dat)-1]` used to make the engine read that file and serve
   it (#18). The `[RANDLINE]`/`[RANDDFL]` file reads that remain are confined to
   `KUZTDS_DATA_DIR` by `underDir`, which is load-bearing, not belt-and-braces.
-- ⏳ Downloading IP-list updates over HTTPS with signature verification (part of
-  the cron block).
+- ✅ The cron service writes only to fixed places. An IP-list target is a list
+  name (`^[a-z0-9_]{1,64}$`) inside `KUZTDS_DATA_DIR`; a geo database goes to
+  the path in `KUZTDS_GEO_DB` / `KUZTDS_ASN_DB`, which the config cannot
+  change — the panel decides what is downloaded, never where it is written.
+  Downloads are size-capped and validated before the rename: no addresses → the
+  list is left alone; not a database of the expected kind → the old database
+  stays.
+- ⚠️ The URLs the cron service fetches are the administrator's (like CURL and
+  `[REMOTE]` URLs in streams): anyone with an admin session can make the server
+  request an address of their choice. Keep the admin panel off the public
+  internet or behind an allowlist.
+- ⏳ Signature verification for downloaded lists (no source publishes one yet).
 
 ## 8. Process
 - ✅ CI (`.github/workflows/ci.yml`) runs `go build`, `go vet` and `go test`

@@ -52,6 +52,12 @@ type Event struct {
 	Counter   uint32
 	CID       string
 	Postback  string
+	ASN       uint32
+	Org       string
+	Timezone  string
+	// Via names the stream that handed the visitor over when the event's
+	// group is not the one they entered through: "<group id>/<stream>".
+	Via string
 }
 
 // Inserter inserts a batch of events into storage (implemented by store.CH).

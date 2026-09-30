@@ -66,11 +66,23 @@ func (r *RealIP) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ip := r.From(req.RemoteAddr, req.Header)
 		ctx := context.WithValue(req.Context(), clientIPKey{}, ip)
+		if peer := parseHostAddr(req.RemoteAddr); peer.IsValid() && r.isTrusted(peer) {
+			ctx = context.WithValue(ctx, viaProxyKey{}, true)
+		}
 		next.ServeHTTP(w, req.WithContext(ctx))
 	})
 }
 
 type clientIPKey struct{}
+type viaProxyKey struct{}
+
+// ViaTrustedProxy reports whether the request arrived through a trusted proxy.
+// Headers a CDN adds about the visitor (CF-IPCountry and the like) mean
+// something only then: from anyone else they are whatever the client typed.
+func ViaTrustedProxy(ctx context.Context) bool {
+	ok, _ := ctx.Value(viaProxyKey{}).(bool)
+	return ok
+}
 
 // ClientIP retrieves the client IP from the context (check validity via IsValid).
 func ClientIP(ctx context.Context) netip.Addr {

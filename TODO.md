@@ -2,28 +2,25 @@
 
 # TODO — KuzTDS
 
-## Large
-- [ ] **Block 5 — cron service** (deferred by decision):
-  - bot IP-list updates (`update_ip_url`, replace/merge modes, parsing `# se` sections)
-  - VirusTotal domain checks (`key_vt`, schedule, actions on infection)
-  - free disk space monitoring + Telegram notifications
-  - cleanup of stale data (currently via TTL in CH — revisit if needed)
-
-## Minor / optional
-- [ ] extra tests for the cmd/admin main() wiring (currently 0%; logic covered in internal/admin)
-- [ ] captcha / TOTP (Google Authenticator) for admin login
+## Not done
+- [ ] TOTP (Google Authenticator) or a captcha for the admin login
+- [ ] deployment packaging: Dockerfile, production compose with all four
+      services and health checks, systemd units (`TimeoutStopSec` ≥ 20 s for the engine)
 - [ ] apiset UI for the api client (currently config via env)
-- [ ] per-stream Header/Comment in the stream form
+- [ ] a 4th device category "Other" (Smart TV / TV Box)
+- [ ] versions in OS/browser filters like `windows:7;10`, `chrome:80;85` (currently "name version" by substring)
 - [ ] per-stream time series for the dashboard table (a sparkline per row)
-- [ ] uniq_time in hours in the UI (currently in seconds)
+- [ ] outbound S2S postback to the traffic source, cost per visit
+- [ ] extra tests for the `main()` wiring of cmd/admin and cmd/cron (the logic is covered in internal/)
+- [ ] `gofmt`, `golangci-lint`, `govulncheck` and the tagged suites in CI
+- [ ] `/metrics` (Prometheus) and `pprof`
 
-## Possible future features
-- [ ] Geo filters: ASN, organization (regex), UTC timezone (`+3,+5:30`)
-- [ ] Filter by a GET variable (`get:str`)
-- [ ] A 4th device category "Other" (Smart TV / TV Box)
-- [ ] `eval` redirect type
-- [ ] Telegram conversion notifications (macros [PROFIT][GROUP][STREAM]...)
-- [ ] Versions in OS/browser filters like `windows:7;10`, `chrome:80;85` (currently "name version" by substring)
-- [ ] Group cloning/migration
+## Decided against
+- `eval` redirect type — executing configured code in the engine process is not
+  something a Go rewrite should carry over; `javascript` and `curl` cover the uses.
 
 ## Done — see docs/STATUS.md
+Block 5 (the cron service), geo filters by ASN / organization / time zone,
+the URL-parameter filter, Telegram conversion notifications, drag-and-drop
+reordering, per-stream note and Content-Type, uniqueness window in hours, flow
+duplication, links between groups.

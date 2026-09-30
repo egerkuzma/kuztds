@@ -20,6 +20,10 @@ type MacroDeps struct {
 	Country   string   // [COUNTRY], [()COUNTRY()]
 	City      string   // [CITY], [()CITY()]
 	Region    string   // [REGION]
+	ASN       string   // [ASN] — the number, "" when unknown
+	Org       string   // [ORG] (url-encoded: free text from the database)
+	Timezone  string   // [TIMEZONE] — IANA name
+	TZOffset  string   // [UTC] — current offset, "+3"
 	Lang      string   // [LANG]
 	Device    string   // [DEVICE]
 	Operator  string   // [OPERATOR]
@@ -119,6 +123,10 @@ func (d MacroDeps) scalars() []scalarMacro {
 		{"[COUNTRY]", d.Country},
 		{"[CITY]", d.City},
 		{"[REGION]", d.Region},
+		{"[ASN]", d.ASN},
+		{"[ORG]", url.QueryEscape(d.Org)},
+		{"[TIMEZONE]", d.Timezone},
+		{"[UTC]", d.TZOffset},
 		{"[LANG]", d.Lang},
 		{"[DEVICE]", d.Device},
 		{"[OPERATOR]", d.Operator},

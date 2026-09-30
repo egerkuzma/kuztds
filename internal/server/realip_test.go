@@ -1,7 +1,9 @@
 package server
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -54,5 +56,31 @@ func TestRealIP_SpoofedXFFFromUntrusted(t *testing.T) {
 	got := r.From("8.8.8.8:1", h)
 	if got.String() != "8.8.8.8" {
 		t.Errorf("spoofing must not pass; got %s", got)
+	}
+}
+
+// ViaTrustedProxy is what gates CDN headers about the visitor: true only when
+// the immediate peer is a configured proxy, whatever headers the request has.
+func TestViaTrustedProxy(t *testing.T) {
+	r, err := NewRealIP([]string{"10.0.0.0/8"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]bool{"10.1.2.3:443": true, "203.0.113.9:443": false, "garbage": false}
+	for peer, want := range cases {
+		var got bool
+		h := r.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			got = ViaTrustedProxy(req.Context())
+		}))
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = peer
+		req.Header.Set("X-Forwarded-For", "10.9.9.9") // a header cannot make a peer trusted
+		h.ServeHTTP(httptest.NewRecorder(), req)
+		if got != want {
+			t.Errorf("peer %s: via trusted proxy = %v; want %v", peer, got, want)
+		}
+	}
+	if ViaTrustedProxy(context.Background()) {
+		t.Error("a bare context is not a trusted request")
 	}
 }
