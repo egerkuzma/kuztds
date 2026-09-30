@@ -48,7 +48,9 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
      carry `asn/org/timezone` (columns added on start; an old schema is
      tolerated). Verified against GeoLite2 test databases and live against
      DB-IP Lite (no time zone and no region ISO codes in that one — the region
-     falls back to its name).
+     falls back to its name). A lookup decodes only the fields it uses: about
+     0.4 µs and 5 allocations for City + ASN (`make bench`), down from 15
+     allocations when the localized names were read as maps.
   2. **`CF-IPCountry` is trusted only through a trusted proxy**, and the
      group's `geo` setting now decides which source wins (`cf` = header first,
      otherwise the database first). Before, the header was read from any
@@ -87,6 +89,10 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
   7. `fetch`: `TestConnectionReuse` compared the tuned transport with the
      default one, which depends on scheduling and failed on a loaded CI runner;
      it now asserts the bound the tuned transport guarantees.
+  8. Throughput was compared with `main` on one machine under the same load
+     (`ab`, 50 keep-alive connections, geo databases loaded, no Redis or
+     ClickHouse): `main` about 110k req/s, this branch 118–163k over three
+     runs — noisy, but no regression, so the figures in the README stand.
 - **Fix**: country/lang/text filters also work when only `values` is set (no
   `raw`) — `router.go: cfgd()/orJoin()`.
 - **Fix (found by e2e tests, 2026-06-07):**

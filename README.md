@@ -11,14 +11,15 @@
 
 KuzTDS takes an incoming visitor, decides **by rules** where to send them
 (redirect / iframe / JavaScript / inline content / stub), tells **bots apart from
-humans**, and records everything for analytics — all from a single long-running
-binary with an embedded admin panel.
+humans**, and records everything for analytics — a single long-running engine,
+an admin panel embedded in its own binary, and a small background service that
+keeps the lists and geo databases fresh.
 
 It is built for throughput and safety: IP lists and signatures live in memory
 (`O(log n)` lookups), logs and conversions go to **ClickHouse**, counters and
 sessions go to **Redis**, and the response never waits for a log write.
 
-![Dashboard](docs/img/dashboard.png)
+![A flow in the admin panel: visitors fall down the trunk, each stream branches off to its destination](docs/img/flow.png)
 
 ---
 
@@ -63,7 +64,8 @@ not like a script.**
   one long-running process; logs are written **asynchronously** to ClickHouse, so
   the hot path never blocks on disk.
 - 🛡️ **Secure by default** — argon2id passwords, server-side sessions, CSRF,
-  parameterized queries, trusted-proxy `X-Forwarded-For`, JSON-only input.
+  parameterized queries, `X-Forwarded-For` and `CF-IPCountry` believed only
+  from trusted proxies, JSON-only input.
 - 🎛️ **Batteries included** — a polished, **embedded** admin panel: flows drawn
   as they work (drag streams to reorder, line widths follow the traffic), a
   visitor test that shows which rule stopped whom, dashboard, logs, conversions,
@@ -107,7 +109,7 @@ not like a script.**
 - `save_ip`: append a detected search-engine IP back into its list.
 
 **Output & rendering:**
-- 17 redirect types (HTTP redirect, JS, meta refresh, iframe, inline HTML, error
+- 18 redirect types (HTTP redirect, JS, meta refresh, iframe, inline HTML, error
   pages, JSON API responses, stub, …) — including **`group`: hand the visitor
   to another group**, so flows can be chained.
 - A rich macro set: `[KEY] [IP] [COUNTRY] [CITY] [REGION] [LANG] [DEVICE]
@@ -153,10 +155,7 @@ not like a script.**
 
 ## Screenshots
 
-**Logs** — multi-select filters (values loaded from the data for the selected
-period), in-list search, country flags, CSV export, pagination:
-
-![Logs](docs/img/logs.png)
+All taken from a running stack with generated traffic.
 
 **A flow** — the group as it works. Visitors enter at the top and fall down the
 trunk; each stream is a branch to its destination; what matches nothing ends in
@@ -171,15 +170,30 @@ the visitor away. It runs on the flows as edited, before saving:
 
 ![Test a visitor](docs/img/flow-test.png)
 
-**Stream editor** — a drawer over the page. *When*: only the conditions this
-stream uses, more from "Add condition". *Then*: where to send, including another
-flow. Bots and the rare options are folded below:
+**Stream editor** (dark theme) — a drawer over the page. *When*: only the
+conditions this stream uses, more from "Add condition". *Then*: where to send,
+including another flow. Bots and the rare options are folded below:
 
 ![Stream editor](docs/img/stream.png)
 
 **Flows** — all of them, with the period's numbers and where they link to:
 
 ![Flows](docs/img/flows.png)
+
+**Dashboard** — what works: visits, conversions and profit, the performance
+table by flow and stream, and who the visitors are:
+
+![Dashboard](docs/img/dashboard.png)
+
+**Logs** — multi-select filters (values loaded from the data for the selected
+period), CSV export; a row opens the visit's detail:
+
+![Logs](docs/img/logs.png)
+
+**Tools** — what the engine learns from an IP address: location, network, the
+lists it is in, and the geo databases in use:
+
+![Tools](docs/img/tools.png)
 
 **Automation** — the cron service: what runs, when it last ran and what it said:
 
@@ -471,11 +485,21 @@ A group is reachable at `/<id>` (and at each alias). Example shape:
         "out": { "redirect": "http_redirect", "out": "https://m.example.com/?k=[KEY]&c=[COUNTRY]" },
         "bots": { "ch_ua": true, "ch_empty_ua": true, "ch_bot_ip_google": true, "redirect": "404_not_found" }
       },
+      {
+        "name": "de_to_offers",
+        "status": true,
+        "comment": "German traffic goes on to the offers group",
+        "rules": { "country": { "flag": 2, "values": ["de"] } },
+        "out": { "redirect": "group", "out": "offers" }
+      },
       { "name": "default", "status": true, "out": { "redirect": "show_text", "out": "no offer" } }
     ]
   }
 ]
 ```
+
+`de_to_offers` hands German visitors to the group whose id is `offers` — another
+entry of the same file (see *Group links* below).
 
 You normally **edit groups in the admin UI** ("Flows" → open a flow → click a
 stream → "Save"). The engine notices the file changed and swaps the config in within
@@ -559,7 +583,7 @@ counter, round-robin).
 
 ## Bot detection
 
-Per stream, toggle which checks apply (tab **Bots** in the editor): UA/referer
+Per stream, toggle which checks apply (section **Bots** of the stream editor): UA/referer
 signatures, empty UA/referer/language, IPv6, PTR (reverse DNS), UA blacklist, and
 search-engine IP lists. Detection runs **after** stream selection. Then:
 
@@ -660,13 +684,15 @@ go test ./...                              # unit tests (16 packages)
 go test -tags=integration ./...            # + ClickHouse/Redis round-trips (needs make infra-up)
 go test -tags=uitest ./internal/admin/     # checks the embedded SPA's JS parses (needs node)
 go vet ./...
-make bench                                 # ipindex benchmark (~10 ns/lookup)
+make bench                                 # ipindex (~10 ns/lookup) and geo lookup benchmarks
 ```
 
 Highlights: `cmd/engine/e2e_test.go` drives **23 end-to-end scenarios** through
 the full pipeline (all redirect types, all macros, bots, geo, filters, operators,
 distribution, limits, firewall, separation, schedule, chance, api mode, and a
-traffic matrix). ClickHouse tests are behind the `integration` build tag and skip
+traffic matrix). `internal/cron` runs every job against local HTTP servers —
+downloads in all formats, refusals of bad ones, alerts, the schedule.
+ClickHouse tests are behind the `integration` build tag and skip
 automatically when ClickHouse is unavailable. Coverage snapshot:
 [`docs/STATUS.md`](docs/STATUS.md).
 
