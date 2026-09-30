@@ -630,12 +630,34 @@ func (s *Server) handleLogsExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename=logs.csv")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"ts", "group", "stream", "country", "city", "device", "os", "browser", "brand", "bot", "uniq", "ip", "keyword", "out"})
+	_ = cw.Write([]string{"ts", "group", "stream", "country", "city", "device", "os", "browser", "brand", "bot", "uniq", "ip", "keyword", "out",
+		"region", "lang", "operator", "redirect", "referer", "useragent", "domain", "cid", "asn", "org", "timezone"})
 	for _, x := range rows {
-		_ = cw.Write([]string{x.TS.Format(time.RFC3339), x.Group, x.Stream, x.Country, x.City, x.Device,
-			x.OS, x.Browser, x.Brand, x.Bot, strconv.Itoa(int(x.Uniq)), x.IP, x.Keyword, x.Out})
+		rec := []string{x.TS.Format(time.RFC3339), x.Group, x.Stream, x.Country, x.City, x.Device,
+			x.OS, x.Browser, x.Brand, x.Bot, strconv.Itoa(int(x.Uniq)), x.IP, x.Keyword, x.Out,
+			x.Region, x.Lang, x.Operator, x.Redirect, x.Referer, x.UserAgent, x.Domain, x.CID,
+			strconv.FormatUint(uint64(x.ASN), 10), x.Org, x.Timezone}
+		for i := range rec {
+			rec[i] = csvSafe(rec[i])
+		}
+		_ = cw.Write(rec)
 	}
 	cw.Flush()
+}
+
+// csvSafe defuses spreadsheet formulas. Keyword, referer, User-Agent and the
+// rest are visitor-controlled text, and a cell that starts with = + - or @ is
+// executed by Excel and its relatives when the export is opened. A leading
+// apostrophe makes it a literal and is not shown in the cell.
+func csvSafe(v string) string {
+	if v == "" || v == "-" {
+		return v
+	}
+	switch v[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + v
+	}
+	return v
 }
 
 func (s *Server) handleDeleteLogs(w http.ResponseWriter, r *http.Request) {

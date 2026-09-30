@@ -203,20 +203,27 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	info := detect.Parse(ua)
 	device := info.Device
 	g := d.geores.Resolve(ip)
-	// Country from Cloudflare if mmdb returned no answer.
-	country := g.Country
-	// Both sources are untrusted input: CF-IPCountry is read from the raw
-	// request (the trusted-proxy list gates X-Forwarded-For, not this header),
-	// and api.cf_country is whatever the client sent. A country is two letters;
+	// Country has two sources: the geo database and the CDN's header. The
+	// group says which one wins when both answer; the other is the fallback.
+	//
+	// The header is believed only when the request came through a trusted
+	// proxy — exactly the rule X-Forwarded-For follows. From anyone else it is
+	// text the visitor typed, and a visitor who can name their own country
+	// picks their own stream. api.cf_country is the api client's statement
+	// and is covered by the api key. Either way a country is two characters;
 	// anything else is dropped rather than passed into the log, the response
 	// header and — through [RANDLINE-([COUNTRY].dat)-1] — a file name.
+	country := g.Country
+	hdr := geo.Empty
 	if apiMode {
-		if cc := isoCode(apiReq.CFCountry); cc != geo.Empty {
-			country = cc
-		}
-	} else if country == geo.Empty {
-		country = isoCode(r.Header.Get("CF-IPCountry"))
+		hdr = isoCode(apiReq.CFCountry)
+	} else if server.ViaTrustedProxy(r.Context()) {
+		hdr = isoCode(r.Header.Get("CF-IPCountry"))
 	}
+	if hdr != geo.Empty && (apiMode || country == geo.Empty || grp.Geo == "cf") {
+		country = hdr
+	}
+	tzOffset := g.UTCOffset(time.Now())
 
 	// 3.5) Uniqueness: the api client sends its own; otherwise cookie/Redis.
 	unique := true
@@ -262,6 +269,11 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		Brand:      info.Brand,
 		Unique:     unique,
 		IP:         ip,
+		ASN:        g.ASN,
+		Org:        g.Org,
+		Timezone:   g.Timezone,
+		TZOffset:   tzOffset,
+		Query:      r.URL.Query(),
 	}
 	deps := router.Deps{IP: d.lists}
 	if d.counters != nil {
@@ -279,6 +291,9 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		if s.Out.Redirect != "" {
 			redirect = s.Out.Redirect
 			outRaw = s.Out.Out
+		}
+		if s.Out.Header != "" {
+			ctype = s.Out.Header
 		}
 		// The limit counter is consumed inside the router (limiter.Allowed):
 		// selecting the stream and taking its limit are one event, so there is
@@ -349,6 +364,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		Key: v.Key, Path: r.Host, IP: ip.String(), Country: country, City: g.City,
 		Region: g.Region, Lang: v.Lang, Device: device, Operator: operator,
 		Domain: v.Domain, UserAgent: ua, CID: cid, Pars: pars,
+		ASN: asnText(g.ASN), Org: dashEmpty(g.Org), Timezone: g.Timezone, TZOffset: tzOffset,
 		DataDir: d.dataDir}
 	out := render.Expand(outRaw, md)
 	if wantRemote {
@@ -407,6 +423,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 			Referer: v.Referer, UserAgent: ua, Domain: v.Domain, Keyword: v.Key,
 			OS: info.OS, OSVersion: info.OSVersion, Browser: info.Browser,
 			BrowserV: info.BrowserVer, Brand: info.Brand, CID: cid,
+			ASN: g.ASN, Org: dashEmpty(g.Org), Timezone: dashEmpty(g.Timezone),
 		})
 	}
 
@@ -430,4 +447,22 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Kuztds-Stream", streamName)
 	h.Set("X-Kuztds-Uniq", b2yn(unique))
 	res.Write(w)
+}
+
+// asnText renders an AS number for macros: "" when unknown, so a template
+// like "as=[ASN]" degrades to an empty value instead of "as=0".
+func asnText(n uint32) string {
+	if n == 0 {
+		return ""
+	}
+	return strconv.FormatUint(uint64(n), 10)
+}
+
+// dashEmpty turns the "-" placeholder into "": free-text values go into URLs
+// and columns where a literal dash would read as data.
+func dashEmpty(s string) string {
+	if s == geo.Empty {
+		return ""
+	}
+	return s
 }

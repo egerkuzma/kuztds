@@ -52,6 +52,9 @@ type Event struct {
 	Counter   uint32
 	CID       string
 	Postback  string
+	ASN       uint32
+	Org       string
+	Timezone  string
 }
 
 // Inserter inserts a batch of events into storage (implemented by store.CH).

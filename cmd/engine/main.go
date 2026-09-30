@@ -26,6 +26,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata" // time-zone filters must work in an image that ships no zoneinfo
 
 	"github.com/egerkuzma/kuztds/internal/config"
 	"github.com/egerkuzma/kuztds/internal/detect"
@@ -66,20 +67,26 @@ func main() {
 	// Bot signatures (phase 2): UA/referer/ua_blacklist with hot-reload.
 	sigs := detect.NewSignatures(dataDir, log)
 
-	// Geo (phase 2): mmdb if KUZTDS_GEO_DB is set, otherwise Nop (geo filter disabled).
-	var geores geo.Resolver = geo.Nop{}
-	if p := os.Getenv("KUZTDS_GEO_DB"); p != "" {
-		if m, err := geo.OpenMMDB(p); err != nil {
-			log.Warn("geo db not loaded, using Nop", "err", err)
-		} else {
-			geores = m
-			log.Info("geo db loaded", "path", p)
-		}
-	}
-
 	// Background hot-reload of changed files.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Geo (phase 2): MaxMind-format databases — City or Country in
+	// KUZTDS_GEO_DB, ASN in KUZTDS_ASN_DB. Neither set → Nop (geo filters never
+	// fire). A configured file that is not there yet is not fatal: the cron
+	// service may still be downloading it, and Watch picks it up when it lands.
+	var geores geo.Resolver = geo.Nop{}
+	if cityDB, asnDB := os.Getenv("KUZTDS_GEO_DB"), os.Getenv("KUZTDS_ASN_DB"); cityDB != "" || asnDB != "" {
+		db, err := geo.Open(cityDB, asnDB, log)
+		if err != nil {
+			log.Warn("geo db not loaded yet, will keep watching", "err", err)
+		}
+		for _, in := range db.Databases() {
+			log.Info("geo db", "path", in.Path, "type", in.Type, "built", in.Built, "loaded", in.Loaded)
+		}
+		geores = db
+		go db.Watch(ctx, reload)
+	}
 	go lists.Watch(ctx, reload)
 	go sigs.Watch(ctx, reload)
 

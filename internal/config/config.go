@@ -51,7 +51,11 @@ type Group struct {
 	Redirect string   `json:"redirect"`
 	Header   string   `json:"header"`
 	Out      string   `json:"out"`
-	Geo      string   `json:"geo"` // "sypex" | "cf"
+	// Geo picks which country source wins when both answer: "cf" — the CDN's
+	// CF-IPCountry header first, the geo database as a fallback; anything else
+	// ("db", or the legacy "sypex") — the database first, the header as a
+	// fallback. City, region, time zone and ASN always come from the database.
+	Geo string `json:"geo"`
 
 	UniqMethod  string       `json:"uniq_method"`  // "ip" (default) | "cookie"
 	UniqSeconds int          `json:"uniq_seconds"` // uniqueness window
@@ -75,6 +79,7 @@ type FirewallRule struct {
 type Stream struct {
 	Name       string     `json:"name"`
 	Status     bool       `json:"status"`
+	Comment    string     `json:"comment"` // operator's note, not used by the engine
 	Rules      Rules      `json:"rules"`
 	Out        Output     `json:"out"`
 	Bots       Bots       `json:"bots"`
@@ -131,6 +136,7 @@ type Output struct {
 	Out          string `json:"out"`
 	Chance       int    `json:"chance"`
 	Distribution string `json:"distribution"` // random | rotator | evenly (for out with |||)
+	Header       string `json:"header"`       // Content-Type override; empty = the group's
 }
 
 // Separation substitutes the output by a keyword from a .dat file (format "key;out").
@@ -200,6 +206,14 @@ type Rules struct {
 	OS      ListFilter `json:"os"`      // by "name version", substring (Android, Android 13, iOS 16)
 	Browser ListFilter `json:"browser"` // by "name version", substring (Chrome, Safari 16)
 	Brand   ListFilter `json:"brand"`   // by device brand, exact (Apple, Samsung, Xiaomi)
+
+	// By what the IP says about the network and the clock (needs the geo databases).
+	ASN      ListFilter `json:"asn"`      // AS number, exact ("15169" or "AS15169")
+	Org      ListFilter `json:"org"`      // AS organization, /regex/ or substring
+	Timezone ListFilter `json:"timezone"` // UTC offset ("+3", "+5:30") or IANA name
+
+	// By a query-string variable: "name" (present) or "name=value".
+	Query ListFilter `json:"get"`
 
 	Schedule Schedule `json:"schedule"` // stream working schedule by day of week
 

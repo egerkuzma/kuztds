@@ -14,6 +14,12 @@ import (
 // CH — a ClickHouse client for batch-inserting events. Implements logbuf.Inserter.
 type CH struct {
 	conn driver.Conn
+	// netCols: the events table has the asn/org/timezone columns. They were
+	// added after the first release, so a database created before that has
+	// them only if the ALTER in ensureSchema went through. Writes and reads
+	// both consult this rather than assume — an INSERT naming a column that is
+	// not there fails as a whole, and that would cost every event.
+	netCols bool
 }
 
 // OpenCH opens a connection to ClickHouse.
@@ -33,8 +39,31 @@ func OpenCH(addr, database, username, password string) (*CH, error) {
 		_ = conn.Close()
 		return nil, fmt.Errorf("clickhouse: ping: %w", err)
 	}
-	return &CH{conn: conn}, nil
+	c := &CH{conn: conn}
+	c.ensureSchema(ctx)
+	return c, nil
 }
+
+// netColumns — columns added to events after the first release.
+const netColumns = `ADD COLUMN IF NOT EXISTS asn UInt32,
+	ADD COLUMN IF NOT EXISTS org LowCardinality(String),
+	ADD COLUMN IF NOT EXISTS timezone LowCardinality(String)`
+
+// ensureSchema brings an older events table up to date and records whether it
+// worked. The ALTER is idempotent and metadata-only, so running it on every
+// start from both the engine and the admin is harmless. If it is refused (a
+// read-only user, say), the client keeps working on the old column set.
+func (c *CH) ensureSchema(ctx context.Context) {
+	_ = c.conn.Exec(ctx, "ALTER TABLE events "+netColumns)
+	var n uint64
+	err := c.conn.QueryRow(ctx, `SELECT count() FROM system.columns
+		WHERE database = currentDatabase() AND table = 'events'
+		  AND name IN ('asn', 'org', 'timezone')`).Scan(&n)
+	c.netCols = err == nil && n == 3
+}
+
+// NetworkColumns reports whether events carry asn/org/timezone.
+func (c *CH) NetworkColumns() bool { return c != nil && c.netCols }
 
 // Close closes the connection.
 func (c *CH) Close() error {
@@ -119,6 +148,13 @@ var breakdownDims = map[string]string{
 	"browser": "browser", "brand": "brand", "operator": "operator",
 	"group": "group_name", "stream": "stream_name", "bot": "bot",
 	"domain": "domain", "city": "city", "lang": "lang",
+	"region": "region", "redirect": "redirect",
+}
+
+// networkDims — breakdowns that need the asn/org/timezone columns.
+var networkDims = map[string]string{
+	"org": "org", "timezone": "timezone",
+	"asn": "if(asn = 0, '', concat('AS', toString(asn)))",
 }
 
 // DeleteGroupLogs deletes a group's events (ALTER ... DELETE, asynchronous
@@ -206,6 +242,9 @@ func (c *CH) Performance(ctx context.Context, from, to time.Time) ([]PerfRow, er
 // Breakdown — a breakdown by dimension dim over a period (top limit).
 func (c *CH) Breakdown(ctx context.Context, from, to time.Time, dim string, limit int) ([]KV, error) {
 	col, ok := breakdownDims[dim]
+	if !ok && c.netCols {
+		col, ok = networkDims[dim]
+	}
 	if !ok {
 		return nil, fmt.Errorf("store: unknown dimension %q", dim)
 	}
@@ -283,6 +322,19 @@ type LogRow struct {
 	IP      string    `json:"ip"`
 	Keyword string    `json:"keyword"`
 	Out     string    `json:"out"`
+
+	// The rest is for the row's detail view, not the table.
+	Region    string `json:"region"`
+	Lang      string `json:"lang"`
+	Operator  string `json:"operator"`
+	Redirect  string `json:"redirect"`
+	Referer   string `json:"referer"`
+	UserAgent string `json:"useragent"`
+	Domain    string `json:"domain"`
+	CID       string `json:"cid"`
+	ASN       uint32 `json:"asn"`
+	Org       string `json:"org"`
+	Timezone  string `json:"timezone"`
 }
 
 // Logs returns log rows matching the filter and the total number of matching rows.
@@ -328,7 +380,12 @@ func (c *CH) Logs(ctx context.Context, f LogFilter) ([]LogRow, int64, error) {
 	}
 
 	limit := clampLogLimit(f.Limit)
-	q := "SELECT ts, group_name, stream_name, country, city, device, os, browser, brand, bot, uniq, ip, keyword, out" +
+	net := ", 0 AS asn, '' AS org, '' AS timezone"
+	if c.netCols {
+		net = ", asn, org, timezone"
+	}
+	q := "SELECT ts, group_name, stream_name, country, city, device, os, browser, brand, bot, uniq, ip, keyword, out," +
+		" region, lang, operator, redirect, referer, useragent, domain, cid" + net +
 		" FROM events WHERE " + where + " ORDER BY ts DESC LIMIT ? OFFSET ?"
 	rows, err := c.conn.Query(ctx, q, append(args, limit, f.Offset)...)
 	if err != nil {
@@ -339,7 +396,9 @@ func (c *CH) Logs(ctx context.Context, f LogFilter) ([]LogRow, int64, error) {
 	for rows.Next() {
 		var r LogRow
 		if err := rows.Scan(&r.TS, &r.Group, &r.Stream, &r.Country, &r.City, &r.Device,
-			&r.OS, &r.Browser, &r.Brand, &r.Bot, &r.Uniq, &r.IP, &r.Keyword, &r.Out); err != nil {
+			&r.OS, &r.Browser, &r.Brand, &r.Bot, &r.Uniq, &r.IP, &r.Keyword, &r.Out,
+			&r.Region, &r.Lang, &r.Operator, &r.Redirect, &r.Referer, &r.UserAgent, &r.Domain, &r.CID,
+			&r.ASN, &r.Org, &r.Timezone); err != nil {
 			return nil, 0, err
 		}
 		out = append(out, r)
@@ -421,22 +480,29 @@ func (c *CH) InsertEvents(ctx context.Context, events []logbuf.Event) error {
 	if len(events) == 0 {
 		return nil
 	}
-	batch, err := c.conn.PrepareBatch(ctx, `INSERT INTO events
-		(ts, group_id, group_name, stream_name, out, keyword, redirect, device,
+	cols := `ts, group_id, group_name, stream_name, out, keyword, redirect, device,
 		 operator, country, city, region, lang, uniq, bot, ip, referer, useragent,
 		 domain, page, se, os, os_version, browser, browser_ver, brand,
-		 counter, cid, postback)`)
+		 counter, cid, postback`
+	if c.netCols {
+		cols += ", asn, org, timezone"
+	}
+	batch, err := c.conn.PrepareBatch(ctx, "INSERT INTO events ("+cols+")")
 	if err != nil {
 		return fmt.Errorf("clickhouse: prepare batch: %w", err)
 	}
 	for _, e := range events {
-		if err := batch.Append(
+		row := []any{
 			e.Ts, e.GroupID, e.GroupName, e.Stream, e.Out, e.Keyword, e.Redirect,
 			e.Device, e.Operator, e.Country, e.City, e.Region, e.Lang, e.Uniq,
 			e.Bot, e.IP, e.Referer, e.UserAgent, e.Domain, e.Page, e.SE,
 			e.OS, e.OSVersion, e.Browser, e.BrowserV, e.Brand,
 			e.Counter, e.CID, e.Postback,
-		); err != nil {
+		}
+		if c.netCols {
+			row = append(row, e.ASN, e.Org, e.Timezone)
+		}
+		if err := batch.Append(row...); err != nil {
 			return fmt.Errorf("clickhouse: append: %w", err)
 		}
 	}
