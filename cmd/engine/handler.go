@@ -94,6 +94,10 @@ func separationFiles(groups *config.Groups) []string {
 	return out
 }
 
+// maxGroupHops bounds a chain of "group" links, so that two groups pointing at
+// each other end in the trash answer instead of spinning.
+const maxGroupHops = 3
+
 // hitPercent reports whether a p-percent chance fires: p <= 0 never, p >= 100
 // always, and exactly p times in 100 in between.
 //
@@ -275,29 +279,53 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		TZOffset:   tzOffset,
 		Query:      r.URL.Query(),
 	}
-	deps := router.Deps{IP: d.lists}
-	if d.counters != nil {
-		deps.Limiter = limiter{c: d.counters, ctx: rctx, id: grp.ID}
-	}
 	// Output defaults — from the group; the stream overrides them.
-	streamName := "-"
-	redirect := grp.Redirect
-	outRaw := grp.Out
-	ctype := grp.Header
-	var selStream *config.Stream
-	if s, ok := router.Select(grp, v, deps); ok {
-		selStream = s
-		streamName = s.Name
-		if s.Out.Redirect != "" {
-			redirect = s.Out.Redirect
-			outRaw = s.Out.Out
+	//
+	// A stream (or a group's default) of type "group" hands the visitor to
+	// another group: selection runs again over that group's streams with the
+	// same visitor. Everything decided before this point — antiflood,
+	// uniqueness, country source — belongs to the group the visitor entered
+	// through; what follows, including the log line, belongs to the group
+	// that finally served them.
+	var (
+		streamName, redirect, outRaw, ctype string
+		selStream                           *config.Stream
+	)
+	for hop := 0; ; hop++ {
+		deps := router.Deps{IP: d.lists}
+		if d.counters != nil {
+			deps.Limiter = limiter{c: d.counters, ctx: rctx, id: grp.ID}
 		}
-		if s.Out.Header != "" {
-			ctype = s.Out.Header
+		streamName, redirect, outRaw, ctype, selStream = "-", grp.Redirect, grp.Out, grp.Header, nil
+		if s, ok := router.Select(grp, v, deps); ok {
+			selStream = s
+			streamName = s.Name
+			if s.Out.Redirect != "" {
+				redirect = s.Out.Redirect
+				outRaw = s.Out.Out
+			}
+			if s.Out.Header != "" {
+				ctype = s.Out.Header
+			}
+			// The limit counter is consumed inside the router (limiter.Allowed):
+			// selecting the stream and taking its limit are one event, so there is
+			// nothing to record here.
 		}
-		// The limit counter is consumed inside the router (limiter.Allowed):
-		// selecting the stream and taking its limit are one event, so there is
-		// nothing to record here.
+		if redirect != "group" {
+			break
+		}
+		var next *config.Group
+		if d.groups != nil {
+			next, _ = d.groups.Get(strings.TrimSpace(outRaw))
+		}
+		// A link to nowhere, to a disabled group, or a chain that does not end
+		// is a configuration error; the visitor gets what an unknown group gets.
+		if next == nil || !next.Status || next == grp || hop >= maxGroupHops {
+			d.log.Warn("engine: group link not followed", "group", grp.ID, "stream", streamName, "target", outRaw, "hop", hop)
+			trashResult(d.trashMode, d.trashURL).Write(w)
+			return
+		}
+		grp = next
 	}
 
 	// 4.5) Bot detection by the selected stream's toggles (after selection).

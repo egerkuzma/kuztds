@@ -15,8 +15,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // the panel shows UTC offsets; must work without system zoneinfo
 
 	"github.com/egerkuzma/kuztds/internal/admin"
+	"github.com/egerkuzma/kuztds/internal/geo"
 	"github.com/egerkuzma/kuztds/internal/security"
 	"github.com/egerkuzma/kuztds/internal/store"
 )
@@ -69,6 +71,22 @@ func main() {
 	if d := os.Getenv("KUZTDS_DATA_DIR"); d != "" {
 		cfg.Lists = admin.NewFileLists(d)
 		log.Info("lists dir", "path", d)
+	}
+
+	// Tools: IP lookup and the visitor simulator read the same lists and geo
+	// databases the engine uses. Automation: the cron service's config file.
+	cfg.DataDir = os.Getenv("KUZTDS_DATA_DIR")
+	cfg.CronFile = os.Getenv("KUZTDS_CRON_FILE")
+	cfg.GeoCityPath, cfg.GeoASNPath = os.Getenv("KUZTDS_GEO_DB"), os.Getenv("KUZTDS_ASN_DB")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if cfg.GeoCityPath != "" || cfg.GeoASNPath != "" {
+		db, err := geo.Open(cfg.GeoCityPath, cfg.GeoASNPath, log)
+		if err != nil {
+			log.Warn("geo db not loaded yet, will keep watching", "err", err)
+		}
+		cfg.Geo = db
+		go db.Watch(ctx, time.Minute)
 	}
 
 	// Keywords.

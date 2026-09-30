@@ -84,6 +84,14 @@ type Config struct {
 	EngineURL    string // base URL of the engine for building group links
 	PasswordFile string // file with the argon2id hash (overrides PasswordHash, written on change)
 	Log          slogLogger
+
+	// Tools and automation. All optional: what is not set is reported as
+	// unavailable by the corresponding endpoint.
+	DataDir     string  // .dat lists, for the IP lookup and the simulator
+	Geo         GeoInfo // geo databases, for the same
+	GeoCityPath string  // whether the cron service has a target for each geo database
+	GeoASNPath  string
+	CronFile    string // cron service config
 }
 
 // slogLogger — minimal logger interface (to avoid pulling in a hard dependency).
@@ -245,6 +253,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/lists", s.auth(http.HandlerFunc(s.handleListsIndex)))
 	mux.Handle("GET /api/lists/{name}", s.auth(http.HandlerFunc(s.handleListRead)))
 	mux.Handle("PUT /api/lists/{name}", s.auth(http.HandlerFunc(s.handleListWrite)))
+
+	mux.Handle("GET /api/lookup", s.auth(http.HandlerFunc(s.handleLookup)))
+	mux.Handle("POST /api/simulate", s.auth(http.HandlerFunc(s.handleSimulate)))
+	mux.Handle("GET /api/cron", s.auth(http.HandlerFunc(s.handleCronGet)))
+	mux.Handle("PUT /api/cron", s.auth(http.HandlerFunc(s.handleCronSave)))
+	mux.Handle("POST /api/cron/run", s.auth(http.HandlerFunc(s.handleCronRun)))
 
 	// Embedded web interface (SPA).
 	mux.HandleFunc("GET /{$}", serveUI)

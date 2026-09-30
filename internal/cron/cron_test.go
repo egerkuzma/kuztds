@@ -118,7 +118,9 @@ func TestValidate(t *testing.T) {
 	bad := []func(*Config){
 		func(c *Config) { c.IPLists.Sources = []IPSource{{URL: "file:///etc/passwd", Target: "ip_x"}} },
 		func(c *Config) { c.IPLists.Sources = []IPSource{{URL: "https://x.example/a", Target: "../etc/x"}} },
-		func(c *Config) { c.IPLists.Sources = []IPSource{{URL: "https://x.example/a", Target: "ip_x", Mode: "wipe"}} },
+		func(c *Config) {
+			c.IPLists.Sources = []IPSource{{URL: "https://x.example/a", Target: "ip_x", Mode: "wipe"}}
+		},
 		func(c *Config) { c.GeoDB.Sources = []GeoSource{{Kind: "weather", URL: "https://x.example/a"}} },
 		func(c *Config) { c.GeoDB.Sources = []GeoSource{{Kind: "city", URL: "ftp://x.example/a"}} },
 		func(c *Config) { c.VirusTotal.Domains = []string{"https://x.example/path"} },
