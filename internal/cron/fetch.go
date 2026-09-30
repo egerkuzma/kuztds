@@ -9,12 +9,37 @@ import (
 	"net/url"
 )
 
+// httpStatus is a response other than 200. Callers tell a few of them apart:
+// 304 (nothing new), 404 (the API does not know the thing), 401/403/429 (no
+// point in asking again during this run).
+type httpStatus struct {
+	host string
+	code int
+}
+
+func (e *httpStatus) Error() string { return fmt.Sprintf("%s: HTTP %d", e.host, e.code) }
+
+// statusOf returns the HTTP status an error stands for, or 0.
+func statusOf(err error) int {
+	var s *httpStatus
+	if errors.As(err, &s) {
+		return s.code
+	}
+	return 0
+}
+
 // get performs a GET and returns the response body of a 200, capped at limit
 // bytes. The caller closes it.
 func (r *Runner) get(ctx context.Context, rawURL string, hdr map[string]string, user, pass string, limit int64) (io.ReadCloser, error) {
+	body, _, err := r.fetch(ctx, rawURL, hdr, user, pass, limit)
+	return body, err
+}
+
+// fetch is get that also returns the response headers.
+func (r *Runner) fetch(ctx context.Context, rawURL string, hdr map[string]string, user, pass string, limit int64) (io.ReadCloser, http.Header, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("bad URL %q", rawURL)
+		return nil, nil, fmt.Errorf("bad URL %q", rawURL)
 	}
 	req.Header.Set("User-Agent", "kuztds-cron")
 	for k, v := range hdr {
@@ -30,13 +55,13 @@ func (r *Runner) get(ctx context.Context, rawURL string, hdr map[string]string, 
 		if errors.As(err, &ue) {
 			err = ue.Err
 		}
-		return nil, fmt.Errorf("%s: %w", hostOf(rawURL), err)
+		return nil, nil, fmt.Errorf("%s: %w", hostOf(rawURL), err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("%s: HTTP %d", hostOf(rawURL), resp.StatusCode)
+		return nil, nil, &httpStatus{host: hostOf(rawURL), code: resp.StatusCode}
 	}
-	return &capped{r: io.LimitReader(resp.Body, limit+1), c: resp.Body, left: limit, host: hostOf(rawURL)}, nil
+	return &capped{r: io.LimitReader(resp.Body, limit+1), c: resp.Body, left: limit, host: hostOf(rawURL)}, resp.Header, nil
 }
 
 func hostOf(rawURL string) string {

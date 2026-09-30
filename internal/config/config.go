@@ -42,6 +42,12 @@ type Secrets struct {
 
 // --- stream config model ---
 
+// MaxGroupHops bounds a chain of "group" links (a stream or a default that
+// hands the visitor to another group), so that groups pointing at each other
+// end in the trash answer instead of spinning. The engine enforces it; the
+// admin's simulator follows the same limit.
+const MaxGroupHops = 3
+
 // Group is a group of streams.
 type Group struct {
 	ID       string   `json:"id"`

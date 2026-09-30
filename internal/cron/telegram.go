@@ -18,8 +18,8 @@ func (r *Runner) notify(ctx context.Context, t Telegram, text string) error {
 	if !t.Configured() {
 		return errors.New("telegram is not configured")
 	}
-	if len(text) > 4000 { // the API limit is 4096 characters
-		text = text[:4000] + "…"
+	if rs := []rune(text); len(rs) > 4000 { // the API limit is 4096 characters
+		text = string(rs[:4000]) + "…"
 	}
 	form := url.Values{"chat_id": {t.ChatID}, "text": {text}, "disable_web_page_preview": {"true"}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,

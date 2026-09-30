@@ -48,11 +48,19 @@ type Status struct {
 	Jobs      map[string]JobStatus `json:"jobs"`
 
 	// Memory the jobs need across runs.
-	Flagged      map[string]int `json:"flagged,omitempty"`        // virustotal: domain → verdicts when last alerted
-	DiskAlerted  map[string]int `json:"disk_alerted,omitempty"`   // disk: path → free percent when last alerted
-	ConvSince    time.Time      `json:"conv_since,omitempty"`     // conversions: announced up to here
-	GeoBuilt     map[string]int `json:"geo_built,omitempty"`      // geo: kind → build epoch installed
-	DisabledByVT []string       `json:"disabled_by_vt,omitempty"` // "group/stream" switched off by the last check
+	Flagged     map[string]int `json:"flagged,omitempty"`      // virustotal: domain → verdicts when last alerted
+	DiskAlerted map[string]int `json:"disk_alerted,omitempty"` // disk: path → free percent when last alerted
+	ConvSince   time.Time      `json:"conv_since,omitempty"`   // conversions: announced up to here
+	GeoBuilt    map[string]int `json:"geo_built,omitempty"`    // geo: kind → build epoch installed
+	// geo: kind → what the source said about the file last downloaded
+	GeoSeen      map[string]GeoSeen `json:"geo_seen,omitempty"`
+	DisabledByVT []string           `json:"disabled_by_vt,omitempty"` // "group/stream" switched off by the last check
+}
+
+// GeoSeen remembers a download well enough to ask "anything newer?" next time.
+type GeoSeen struct {
+	URL          string `json:"url"`
+	LastModified string `json:"last_modified"`
 }
 
 // ReadStatus loads the status file; a missing file is an empty status.
@@ -117,6 +125,7 @@ type Runner struct {
 	disk         func(path string) (free, total uint64, err error)
 
 	mu      sync.Mutex
+	saveMu  sync.Mutex // orders writes of the status file, see save
 	st      Status
 	running map[string]bool
 	wg      sync.WaitGroup
@@ -247,8 +256,12 @@ func (r *Runner) start(ctx context.Context, cfg Config, job string) {
 				js.Message = msg + " — " + err.Error()
 			}
 		}
+		// The interval counts from the end of a run. Counted from its start, a
+		// job that takes longer than its interval — a VirusTotal pass over many
+		// domains — would be due again the moment it finished and would spend
+		// the whole day at the API's rate limit.
 		if job != JobTelegramTest {
-			js.NextRun = began.Add(cfg.Interval(job))
+			js.NextRun = r.now().Add(cfg.Interval(job))
 		}
 		r.st.Jobs[job] = js
 		delete(r.running, job)
@@ -305,7 +318,15 @@ func (r *Runner) state(f func(*Status)) {
 	r.mu.Unlock()
 }
 
+// save writes the state to the status file. Snapshot and write happen under
+// one lock of their own: the ticker's heartbeat and a finishing job both save,
+// and without it the one that took its snapshot first could rename last,
+// leaving the file a step behind the state — "still running" on a finished
+// job, or, across a restart, a job that runs again because its next-run time
+// was never written.
 func (r *Runner) save() {
+	r.saveMu.Lock()
+	defer r.saveMu.Unlock()
 	r.mu.Lock()
 	b, err := json.MarshalIndent(r.st, "", "  ")
 	r.mu.Unlock()

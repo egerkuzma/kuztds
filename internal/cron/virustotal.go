@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -78,6 +79,15 @@ func (r *Runner) runVirusTotal(ctx context.Context, cfg Config) (string, error) 
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", d, err))
 			failed[d] = true
+			// A refused key or a spent quota will not get better within this
+			// run; the rest of the domains keep the state they had.
+			if c := statusOf(err); c == http.StatusUnauthorized || c == http.StatusForbidden || c == http.StatusTooManyRequests {
+				for _, rest := range domains[i+1:] {
+					failed[rest] = true
+				}
+				errs = append(errs, errors.New("the pass was stopped: VirusTotal refuses the key or the quota is spent"))
+				break
+			}
 			continue
 		}
 		if n >= threshold {
@@ -147,6 +157,9 @@ func (r *Runner) runVirusTotal(ctx context.Context, cfg Config) (string, error) 
 func (r *Runner) vtVerdicts(ctx context.Context, key, domain string) (int, error) {
 	body, err := r.get(ctx, r.vtBase+"/api/v3/domains/"+url.PathEscape(domain),
 		map[string]string{"x-apikey": key}, "", "", 4<<20)
+	if statusOf(err) == http.StatusNotFound {
+		return 0, nil // a domain VirusTotal has never seen has no verdicts
+	}
 	if err != nil {
 		return 0, err
 	}

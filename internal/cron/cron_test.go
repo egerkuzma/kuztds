@@ -835,3 +835,162 @@ func TestRunStopsWithContext(t *testing.T) {
 		t.Fatal("Run did not return after cancel")
 	}
 }
+
+// ---------- refinements ----------
+
+// A source that supports it is asked "anything newer?" instead of being
+// downloaded again; the question is only asked when there is a file to keep
+// and the URL is the one the answer came from.
+func TestGeoDBConditionalDownload(t *testing.T) {
+	e := newEnv(t)
+	city := testDB(t, "GeoLite2-City-Test.mmdb")
+	const stamp = "Tue, 01 Sep 2026 01:38:01 GMT"
+	var full, notModified int
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-Modified-Since") == stamp {
+			notModified++
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		full++
+		w.Header().Set("Last-Modified", stamp)
+		_, _ = w.Write(city)
+	}
+	e.mux.HandleFunc("/city", handler)
+	e.mux.HandleFunc("/city-mirror", handler)
+	run := func(path string) string {
+		t.Helper()
+		msg, err := e.r.runGeoDB(context.Background(), GeoDB{Sources: []GeoSource{{Kind: "city", URL: e.srv.URL + path}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return msg
+	}
+
+	if msg := run("/city"); msg != "city: GeoLite2-City updated" || full != 1 {
+		t.Fatalf("first run: %q, %d full downloads", msg, full)
+	}
+	if msg := run("/city"); msg != "city: not modified since "+stamp || full != 1 || notModified != 1 {
+		t.Errorf("second run: %q (full %d, 304 %d); want a conditional request answered 304", msg, full, notModified)
+	}
+	// Another URL: what the first source said does not apply to it.
+	if msg := run("/city-mirror"); full != 2 || msg != "city: GeoLite2-City is up to date" {
+		t.Errorf("new URL: %q, %d full downloads; want an unconditional download", msg, full)
+	}
+	// The file is gone: a 304 would leave the engine without a database.
+	if err := os.Remove(e.r.paths.CityDB); err != nil {
+		t.Fatal(err)
+	}
+	if msg := run("/city-mirror"); full != 3 || msg != "city: GeoLite2-City updated" {
+		t.Errorf("missing file: %q, %d full downloads; want the database back", msg, full)
+	}
+}
+
+// A domain VirusTotal has never seen is clean as far as it knows; a refused
+// key or a spent quota ends the pass at once instead of waiting out every
+// remaining domain.
+func TestVirusTotalUnknownDomainAndQuota(t *testing.T) {
+	e := newEnv(t)
+	status := map[string]int{"a.example": http.StatusNotFound, "b.example": http.StatusOK}
+	var asked []string
+	e.mux.HandleFunc("/api/v3/domains/", func(w http.ResponseWriter, r *http.Request) {
+		d := strings.TrimPrefix(r.URL.Path, "/api/v3/domains/")
+		asked = append(asked, d)
+		code, ok := status[d]
+		if !ok {
+			code = http.StatusTooManyRequests
+		}
+		if code != http.StatusOK {
+			w.WriteHeader(code)
+			return
+		}
+		_, _ = io.WriteString(w, vtBody(0, 0))
+	})
+	cfg := Default()
+	cfg.Telegram = tg
+	cfg.VirusTotal = VirusTotal{APIKey: "k", Domains: []string{"a.example", "b.example"}, Threshold: 1}
+	msg, err := e.r.runVirusTotal(context.Background(), cfg)
+	if err != nil || msg != "2 domain(s) checked, 0 flagged" {
+		t.Errorf("unknown domain: %q, %v; want it counted as checked and clean", msg, err)
+	}
+
+	asked = nil
+	cfg.VirusTotal.Domains = []string{"a.example", "c.example", "d.example", "e.example"}
+	e.r.state(func(st *Status) { st.Flagged = map[string]int{"e.example": 3} })
+	msg, err = e.r.runVirusTotal(context.Background(), cfg)
+	if err == nil || !strings.Contains(err.Error(), "quota") {
+		t.Errorf("quota: err = %v", err)
+	}
+	if strings.Join(asked, ",") != "a.example,c.example" {
+		t.Errorf("asked %v; the pass must stop at the first 429", asked)
+	}
+	if msg != "1 domain(s) checked, 0 flagged" {
+		t.Errorf("message = %q", msg)
+	}
+	// e.example was never reached: it keeps the state it had, so it does not
+	// alert again when the quota is back.
+	e.r.state(func(st *Status) {
+		if st.Flagged["e.example"] != 3 {
+			t.Errorf("flagged state after an aborted pass = %v", st.Flagged)
+		}
+	})
+	if len(e.messages()) != 0 {
+		t.Errorf("no alert expected, got %q", e.messages())
+	}
+}
+
+// The interval counts from the end of a run.
+func TestNextRunCountsFromTheEnd(t *testing.T) {
+	e := newEnv(t)
+	clock := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	var mu sync.Mutex
+	e.r.now = func() time.Time { mu.Lock(); defer mu.Unlock(); return clock }
+	e.r.disk = func(string) (uint64, uint64, error) {
+		mu.Lock()
+		clock = clock.Add(25 * time.Minute) // the run itself takes 25 minutes
+		mu.Unlock()
+		return 50, 100, nil
+	}
+	cfg := Default()
+	cfg.Disk.Enabled, cfg.Disk.EveryMinutes = true, 10
+	e.saveConfig(cfg)
+	e.r.Tick(context.Background())
+	e.r.Wait()
+	d := e.status().Jobs[JobDisk]
+	if want := time.Date(2026, 9, 30, 12, 35, 0, 0, time.UTC); !d.NextRun.Equal(want) {
+		t.Errorf("next run = %v; want %v (end of the run + interval)", d.NextRun, want)
+	}
+	if d.DurationMS != (25 * time.Minute).Milliseconds() {
+		t.Errorf("duration = %d ms", d.DurationMS)
+	}
+}
+
+// A long message is cut on a character boundary: half a rune is invalid UTF-8
+// and the API rejects the whole message.
+func TestTelegramCutsOnARuneBoundary(t *testing.T) {
+	e := newEnv(t)
+	if err := e.r.notify(context.Background(), tg, strings.Repeat("ж", 5000)); err != nil {
+		t.Fatal(err)
+	}
+	m := e.messages()[0]
+	if got := []rune(m); len(got) != 4001 || got[4000] != '…' || got[3999] != 'ж' {
+		t.Errorf("message is %d runes, ends %q", len(got), string(got[len(got)-2:]))
+	}
+}
+
+// The status file must never be a step behind the state: the heartbeat and a
+// finishing job both write it.
+func TestStatusFileIsNeverStale(t *testing.T) {
+	for i := 0; i < 40; i++ {
+		e := newEnv(t)
+		e.r.disk = func(string) (uint64, uint64, error) { return 50, 100, nil }
+		cfg := Default()
+		cfg.Disk.Enabled = true
+		e.saveConfig(cfg)
+		e.r.Tick(context.Background())
+		e.r.Wait()
+		if d := e.status().Jobs[JobDisk]; d.Running || d.LastRun.IsZero() || d.NextRun.IsZero() {
+			t.Fatalf("round %d: status file after the run = %+v", i, d)
+		}
+	}
+}

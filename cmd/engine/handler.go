@@ -94,10 +94,6 @@ func separationFiles(groups *config.Groups) []string {
 	return out
 }
 
-// maxGroupHops bounds a chain of "group" links, so that two groups pointing at
-// each other end in the trash answer instead of spinning.
-const maxGroupHops = 3
-
 // hitPercent reports whether a p-percent chance fires: p <= 0 never, p >= 100
 // always, and exactly p times in 100 in between.
 //
@@ -321,7 +317,7 @@ func (d *engineDeps) root(w http.ResponseWriter, r *http.Request) {
 		}
 		// A link to nowhere, to a disabled group, or a chain that does not end
 		// is a configuration error; the visitor gets what an unknown group gets.
-		if next == nil || !next.Status || next == grp || hop >= maxGroupHops {
+		if next == nil || !next.Status || next == grp || hop >= config.MaxGroupHops {
 			d.log.Warn("engine: group link not followed", "group", grp.ID, "stream", streamName, "target", outRaw, "hop", hop)
 			trashResult(d.trashMode, d.trashURL).Write(w)
 			return

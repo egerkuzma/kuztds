@@ -161,8 +161,6 @@ type simStep struct {
 	Error    string      `json:"error,omitempty"`
 }
 
-const simMaxHops = 3 // the engine's limit on "group" links
-
 // handleSimulate walks a visitor through a group the way the engine's router
 // would and reports, for every stream, whether it matches and which rule
 // turned the visitor away. It works on the groups sent in the request, so an
@@ -267,7 +265,7 @@ func (s *Server) handleSimulate(w http.ResponseWriter, r *http.Request) {
 			step.Error = "links to a disabled group: " + next.ID
 		case next == grp:
 			step.Error = "links to itself"
-		case hop >= simMaxHops:
+		case hop >= config.MaxGroupHops:
 			step.Error = "too many group links in a row"
 		}
 		path = append(path, step)

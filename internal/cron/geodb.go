@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,11 +48,31 @@ func (r *Runner) runGeoDB(ctx context.Context, cfg GeoDB) (string, error) {
 // database of the expected kind, and only then renames it into place. The
 // engine notices the new file on its reload interval.
 func (r *Runner) updateGeo(ctx context.Context, src GeoSource, target string) (string, error) {
-	body, err := r.get(ctx, src.URL, nil, src.User, src.Password, maxGeoBytes)
+	// Ask only for what changed: the databases are tens of megabytes and come
+	// out a few times a week at most. The condition is dropped when there is
+	// nothing to keep — no file on disk, or a different URL than last time.
+	var seen GeoSeen
+	r.state(func(st *Status) { seen = st.GeoSeen[src.Kind] })
+	var hdr map[string]string
+	if _, err := os.Stat(target); err == nil && seen.URL == src.URL && seen.LastModified != "" {
+		hdr = map[string]string{"If-Modified-Since": seen.LastModified}
+	}
+	body, respHdr, err := r.fetch(ctx, src.URL, hdr, src.User, src.Password, maxGeoBytes)
+	if statusOf(err) == http.StatusNotModified {
+		return "not modified since " + seen.LastModified, nil
+	}
 	if err != nil {
 		return "", err
 	}
 	defer body.Close()
+	remember := func() {
+		r.state(func(st *Status) {
+			if st.GeoSeen == nil {
+				st.GeoSeen = map[string]GeoSeen{}
+			}
+			st.GeoSeen[src.Kind] = GeoSeen{URL: src.URL, LastModified: respHdr.Get("Last-Modified")}
+		})
+	}
 
 	tmp, err := os.CreateTemp(filepath.Dir(target), "."+filepath.Base(target)+".dl*")
 	if err != nil {
@@ -79,6 +100,7 @@ func (r *Runner) updateGeo(ctx context.Context, src GeoSource, target string) (s
 	var have int
 	r.state(func(st *Status) { have = st.GeoBuilt[src.Kind] })
 	if _, err := os.Stat(target); err == nil && have == built {
+		remember()
 		return typ + " is up to date", nil
 	}
 	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
@@ -93,6 +115,7 @@ func (r *Runner) updateGeo(ctx context.Context, src GeoSource, target string) (s
 		}
 		st.GeoBuilt[src.Kind] = built
 	})
+	remember()
 	return typ + " updated", nil
 }
 
