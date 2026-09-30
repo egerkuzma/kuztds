@@ -76,15 +76,22 @@ type record struct {
 		ISOCode string `maxminddb:"iso_code"`
 	} `maxminddb:"country"`
 	City struct {
-		Names map[string]string `maxminddb:"names"`
+		Names names `maxminddb:"names"`
 	} `maxminddb:"city"`
 	Subdivisions []struct {
-		ISOCode string            `maxminddb:"iso_code"`
-		Names   map[string]string `maxminddb:"names"`
+		ISOCode string `maxminddb:"iso_code"`
+		Names   names  `maxminddb:"names"`
 	} `maxminddb:"subdivisions"`
 	Location struct {
 		TimeZone string `maxminddb:"time_zone"`
 	} `maxminddb:"location"`
+}
+
+// names picks the English name out of a localized-names map. Decoding into a
+// struct reads that one entry; decoding into a map would allocate the map and
+// a string for every language of every lookup.
+type names struct {
+	En string `maxminddb:"en"`
 }
 
 // asnRecord — the GeoLite2-ASN schema (DB-IP's ASN Lite uses the same names).
@@ -100,12 +107,12 @@ func fromRecord(r record) Geo {
 		// The last subdivision is the most specific. Databases without ISO
 		// codes for subdivisions (DB-IP Lite) still name them.
 		if region = r.Subdivisions[n-1].ISOCode; region == "" {
-			region = r.Subdivisions[n-1].Names["en"]
+			region = r.Subdivisions[n-1].Names.En
 		}
 	}
 	return Geo{
 		Country:  norm(r.Country.ISOCode),
-		City:     norm(r.City.Names["en"]),
+		City:     norm(r.City.Names.En),
 		Region:   norm(region),
 		Timezone: keep(r.Location.TimeZone),
 		Org:      Empty,

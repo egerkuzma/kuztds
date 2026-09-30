@@ -34,11 +34,10 @@ func TestNorm(t *testing.T) {
 func TestFromRecord(t *testing.T) {
 	var r record
 	r.Country.ISOCode = "RU"
-	r.City.Names = map[string]string{"en": "Moscow", "ru": "Москва"}
-	r.Subdivisions = append(r.Subdivisions, r.Subdivisions...)[:0]
+	r.City.Names.En = "Moscow"
 	r.Subdivisions = append(r.Subdivisions, struct {
-		ISOCode string            `maxminddb:"iso_code"`
-		Names   map[string]string `maxminddb:"names"`
+		ISOCode string `maxminddb:"iso_code"`
+		Names   names  `maxminddb:"names"`
 	}{ISOCode: "RU-MOW"})
 	g := fromRecord(r)
 	if g.Country != "ru" || g.City != "moscow" || g.Region != "ru-mow" {
@@ -46,7 +45,7 @@ func TestFromRecord(t *testing.T) {
 	}
 
 	// No ISO code for the subdivision: its name stands in.
-	r.Subdivisions[0].ISOCode, r.Subdivisions[0].Names = "", map[string]string{"en": "Moscow Oblast"}
+	r.Subdivisions[0].ISOCode, r.Subdivisions[0].Names.En = "", "Moscow Oblast"
 	if g := fromRecord(r); g.Region != "moscow oblast" {
 		t.Errorf("region without an ISO code = %q; want the name", g.Region)
 	}

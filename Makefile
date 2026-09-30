@@ -13,7 +13,7 @@ test:
 	go test ./...
 
 bench:
-	go test ./internal/ipindex/ -bench=. -benchmem
+	go test ./internal/ipindex/ ./internal/geo/ -run=^$$ -bench=. -benchmem
 
 lint:
 	golangci-lint run
