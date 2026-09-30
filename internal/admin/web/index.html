@@ -123,6 +123,7 @@
   .chip .k{color:var(--subtle)} .chip .v{overflow:hidden;text-overflow:ellipsis;font-weight:550}
   .chip.any{background:transparent;border-style:dashed;color:var(--subtle)}
   .chip.hit{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)} .chip.hit .k{color:var(--bad)}
+  .chip.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)} .chip.warn .k{color:var(--warn)} .chip svg.ic{width:13px;height:13px}
   .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--subtle)} .dot.on{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-1)}
   .pad{padding:16px 18px}
@@ -179,6 +180,9 @@
   details.sec[open]>summary::after{transform:rotate(-135deg)} details.sec[open]>summary{margin-bottom:12px}
   .savebar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px;border-radius:14px;
     background:var(--fg);color:var(--bg);box-shadow:var(--shadow-3);font-weight:550;white-space:nowrap}
+  /* with a drawer open the bar centres in what is left of the page, above the scrim
+     (a click on it saves rather than closing the drawer) and never under the drawer */
+  .has-drawer .savebar{left:calc((100vw - min(620px,100vw))/2);z-index:65}
   .savebar button{border-color:transparent}
   .savebar .discard{background:transparent;color:inherit;box-shadow:none;opacity:.75} .savebar .discard:hover{opacity:1;background:rgba(127,127,127,.2)}
   .savebar kbd{font:inherit;font-size:11px;opacity:.7;margin-left:4px}
@@ -296,6 +300,7 @@
   .crow .cx{grid-column:2;grid-row:1/3;align-self:start}
   .crow .cv{grid-column:1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
   .crow .cv select{width:auto;min-width:112px} .crow .cv input.g{flex:1;min-width:150px}
+  .crow .cv>select{align-self:flex-start}
   .crow .cv .hint{width:100%}
   .addmenu{columns:2;column-gap:4px;min-width:340px} .addmenu .grp{break-inside:avoid}
   .tog{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border:1px solid var(--border-strong);border-radius:999px;background:var(--surface);font-size:12.5px;cursor:pointer;user-select:none;position:relative}
@@ -310,6 +315,29 @@
   .oprow{display:grid;grid-template-columns:1fr 130px 26px;gap:8px;width:100%;margin-bottom:6px}
   .srcrow{display:grid;gap:8px;margin-bottom:10px;align-items:center;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2)}
   .srcrow .full{grid-column:1/-1}
+  /* a list edited as chips instead of a separated string */
+  .tags{flex:1;min-width:180px;display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-height:32px;padding:4px 6px;border:1px solid var(--border-strong);border-radius:var(--r-sm);
+    background:var(--surface);cursor:text;transition:border-color .12s,box-shadow .12s}
+  .tags:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus)}
+  .tag{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 2px 0 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12.5px;font-weight:600;max-width:100%;cursor:default}
+  .tag>span{overflow:hidden;text-overflow:ellipsis;white-space:pre}
+  .tag button{width:18px;height:18px;padding:0;border:none;background:transparent;box-shadow:none;color:inherit;opacity:.65;border-radius:4px}
+  .tag button:hover{opacity:1;background:var(--surface-3)} .tag svg.ic{width:12px;height:12px}
+  .tags input.tin{flex:1;min-width:90px;width:auto;height:22px;padding:0 2px;border:none;box-shadow:none;background:transparent}
+  /* output variants and page rewrites: one row each */
+  .vars{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+  .var{display:grid;grid-template-columns:18px minmax(0,1fr) 26px;gap:6px;align-items:start}
+  .var .vn{height:32px;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--subtle)}
+  .var textarea{min-height:56px} .var button{margin-top:3px}
+  .fld>button.sm{align-self:flex-start}
+  .rwrow{display:grid;grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr) 26px;gap:6px;align-items:center;margin-bottom:6px}
+  .rwrow>span{text-align:center;color:var(--subtle)}
+  .mac{color:var(--accent);font-weight:600}
+  .hint.bad{color:var(--bad);font-weight:550}
+  .dest .vl{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .dest .vl div{display:flex;gap:7px;align-items:baseline;min-width:0;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .dest .vl i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--subtle);flex:none;min-width:8px}
+  .dest .vl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 
   /* automation */
   .jobs{columns:440px;column-gap:14px}
@@ -443,6 +471,7 @@ const IC={
   bot:'<rect x="4" y="9" width="16" height="11" rx="2"/><path d="M12 5v4M9 14h.01M15 14h.01"/><circle cx="12" cy="4" r="1.5"/>',
   send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
   refresh:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>',
+  alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>',
 };
 const icon=(k)=>`<svg class="ic" viewBox="0 0 24 24">${IC[k]||''}</svg>`;
 
@@ -493,13 +522,13 @@ let DRAWER=null;
 function closeDrawer(){
   if(!DRAWER)return;
   const d=DRAWER; DRAWER=null;
-  d.sc.remove(); d.el.remove();
+  d.sc.remove(); d.el.remove(); document.body.classList.remove('has-drawer');
   if(d.onClose)d.onClose();
 }
 function drawer(el,onClose){
   closeDrawer();
   const sc=$('<div class="scrim"></div>'); sc.onclick=closeDrawer;
-  document.body.append(sc,el);
+  document.body.append(sc,el); document.body.classList.add('has-drawer');
   DRAWER={el,sc,onClose};
   return el;
 }
@@ -790,6 +819,132 @@ function bindChartHover(cv){
    reordered by dragging; a stream can also send visitors on to another
    flow.
    ================================================================== */
+
+// ---- pure: begin ----
+// Stored values ↔ what a person reads and edits. Nothing here touches the
+// page: web_logic_test.go runs this block under node.
+const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const WEEK=[1,2,3,4,5,6,0];   // shown Monday first; the config is indexed by weekday
+const DIST={random:'at random',rotator:'in turn per visitor',evenly:'evenly in turn'};
+
+// A typed or pasted list: commas, new lines and "|" all separate values.
+// Repeats are dropped — in any letter case unless cs (case-sensitive) is set.
+function splitList(s,cs){return uniq(String(s==null?'':s).split(/[,|\n]/).map(x=>x.trim()).filter(Boolean),cs)}
+function uniq(a,cs){const seen=new Set();return a.filter(x=>{const k=cs?String(x):String(x).toLowerCase();if(seen.has(k))return false;seen.add(k);return true})}
+const sameList=(a,b)=>a.length===b.length&&a.every((x,i)=>x===b[i]);
+
+// A /pattern/flags made of nothing but plain alternatives — /amazon|ovh/i —
+// reads as a list of words. Anything more (anchors, classes, groups, repeats,
+// an empty alternative) is a real expression and gives null.
+function altWords(raw){
+  const m=/^\/([\s\S]*)\/([a-z]*)$/.exec(String(raw==null?'':raw).trim());
+  if(!m||!m[1])return null;
+  const p=m[1], words=[]; let w='';
+  for(let i=0;i<p.length;i++){
+    const ch=p[i];
+    if(ch==='\\'){const nx=p[i+1];if(nx===undefined||/[A-Za-z0-9]/.test(nx))return null;w+=nx;i++;continue}
+    if(ch==='|'){if(!w.trim())return null;words.push(w);w='';continue}
+    if('.+*?()[]{}^$'.includes(ch))return null;
+    w+=ch;
+  }
+  if(!w.trim())return null;
+  words.push(w);
+  return {words,flags:m[2]};
+}
+const reEsc=(s)=>String(s).replace(/[\\.+*?()[\]{}^$|]/g,'\\$&');
+const altRegex=(words,flags)=>'/'+words.map(reEsc).join('|')+'/'+(flags||'');
+
+// How a stored list condition is shown: plain words, words that are stored as
+// an expression (the alternation above), or an expression edited as text.
+// Only raw makes it an expression — that is what the router reads.
+function listForm(f,rxOK){
+  f=f||{};
+  const raw=String(f.raw||'').trim();
+  if(rxOK&&raw.startsWith('/')){
+    const a=altWords(raw);
+    return a?{form:'alt',words:a.words,flags:a.flags,raw}:{form:'regex',words:[],flags:'',raw};
+  }
+  const vals=(f.values||[]).map(v=>String(v).trim()).filter(Boolean);
+  return {form:'words',words:vals.length?uniq(vals):splitList(raw),flags:'',raw:''};
+}
+// An expression as typed → as stored: trimmed, slashes added when missing.
+const rxText=(s)=>{s=String(s==null?'':s).trim();return !s||s.startsWith('/')?s:'/'+s+'/'};
+// Why the engine could not use an expression, or '' — it compiles RE2, and a
+// pattern it cannot compile never matches, so "is" would turn everyone away.
+// JS accepts lookarounds and back-references; RE2 does not.
+function rxProblem(s){
+  const m=/^\/([\s\S]*)\/([a-z]*)$/.exec(rxText(s));
+  if(!m||!m[1])return 'write it between slashes: /pattern/';
+  try{new RegExp(m[1])}catch(e){return 'not a valid expression'}
+  if(/\(\?<?[=!]|\\[1-9]/.test(m[1]))return 'lookarounds and back-references are not supported';
+  return '';
+}
+// What a list condition stores, read back from the editor. Words stored as an
+// expression stay one, with the same flags; untouched, they keep their text.
+function listValue(flag,form,words,rx,orig,flags){
+  const off={flag:0,values:[],raw:''};
+  if(form==='regex'){
+    const s=rxText(rx);
+    return s?{flag,values:[s],raw:s}:off;
+  }
+  words=(words||[]).filter(w=>String(w).trim());
+  if(!words.length)return off;
+  if(form==='alt'){
+    const o=altWords(orig), raw=o&&o.flags===(flags||'')&&sameList(o.words,words)?orig:altRegex(words,flags);
+    return {flag,values:[raw],raw};
+  }
+  // "/…/" typed as the only value is an expression, as it always was.
+  if(words.length===1&&/^\/.+\/[a-z]*$/.test(words[0]))return {flag,values:[words[0]],raw:words[0]};
+  const raw=words.join(',');
+  return {flag,values:words.slice(),raw:raw.startsWith('/')?'':raw};
+}
+// The words a list condition reads with, [positive, negative]. m is how the
+// router compares: 'is' exact or code lists, 'has' substrings, 'dom' exact
+// domains — an expression always searches.
+function condOps(m,form){
+  if(form==='regex')return ['matches','does not match'];
+  if(m==='has'||(m==='dom'&&form==='alt'))return ['contains','does not contain'];
+  return ['is','is not'];
+}
+
+// Output variants live in one string separated by "|||"; the engine trims
+// each and picks one per visit. A single output is kept exactly as typed.
+function splitVariants(out){
+  const s=String(out==null?'':out);
+  return s.includes('|||')?s.split('|||').map(x=>x.trim()).filter(Boolean):(s.trim()?[s]:[]);
+}
+function joinVariants(vs){
+  const k=(vs||[]).filter(v=>String(v).trim());
+  return k.length>1?k.map(v=>String(v).trim()).join('|||'):(k[0]||'');
+}
+// Page rewrites for "Proxy a page": one "find|||replace" per line. The engine
+// skips lines without the separator; so does this.
+function rewriteRows(s){
+  return String(s||'').split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.includes('|||'))
+    .map(l=>{const i=l.indexOf('|||');return {find:l.slice(0,i),repl:l.slice(i+3)}});
+}
+function joinRewrite(rows){return (rows||[]).filter(r=>r.find!=='').map(r=>r.find+'|||'+r.repl).join('\n')}
+
+// 3600 → "hour", 7200 → "2 h": a period as it reads on the canvas. 0 is a day,
+// as the limit editor says.
+function humanSeconds(n){
+  n=+n||86400;
+  for(const [s,one,short] of [[604800,'week','wk'],[86400,'day','d'],[3600,'hour','h'],[60,'minute','min']])
+    if(n%s===0)return n===s?one:(n/s)+' '+short;
+  return n+' s';
+}
+// The days a stream works, Monday first; the usual sets by name.
+function dayList(days){
+  const on=WEEK.filter(i=>days&&days[i]);
+  if(on.length===7)return 'every day';
+  if(!on.length)return 'never';
+  const k=on.join('');
+  return k==='12345'?'weekdays':k==='60'?'weekends':on.map(i=>DAYS[i]).join(' ');
+}
+// Macros in an already escaped output stand out from the text around them.
+const macroHTML=(h)=>String(h).replace(/\[(?:\(\))?[A-Z][A-Z0-9_]*(?:\(\))?(?:-[^\]\s<>]*)?\]/g,'<span class="mac">$&</span>');
+// ---- pure: end ----
+
 const TYPES={
   http_redirect:['HTTP redirect','302 to a URL'],
   show_text:['Show text','plain text or HTML as is'],
@@ -806,35 +961,40 @@ const QUICK=['http_redirect','show_text','javascript','curl','group','stop'];
 const typeLabel=(t)=>(TYPES[t]||[t||'—'])[0];
 // Types that serve a fixed answer and ignore the output field.
 const NOOUT=new Set(['stop','403_forbidden','404_not_found','500_server_error','under_construction']);
+// Types whose output is a URL (one line); the rest carry text, code or HTML.
+const URLISH=new Set(['http_redirect','meta_refresh','js_redirect','iframe_redirect','js_selection','iframe_selection','curl']);
+const outLabel=(t)=>URLISH.has(t)?'URL':({show_text:'Text',javascript:'Script',show_page_html:'HTML'}[t]||'Output');
+const outPH=(t)=>t==='http_redirect'?'https://example.com/?sub=[CID]&kw=[KEY]':URLISH.has(t)?'https://example.com/':'';
 const HEADERS=['text/html','text/plain','application/javascript'];
-const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const opt=(v,l,cur)=>`<option value="${esc(v)}"${String(cur)===String(v)?' selected':''}>${esc(l)}</option>`;
 const sel=(id,opts,attr)=>`<select id="${id}" ${attr||''}>${opts}</select>`;
 
 // The conditions a stream can carry. `k` is the rule's key in the config and
 // the name the engine reports when it rejects a visitor; `kind` decides how
 // the row is edited, summarised on the canvas and read back into the model.
+// For lists, `m` is how the router compares (see condOps) and `rx` marks the
+// ones that also take a regular expression.
 const COND=[
-  {k:'country',l:'Country',g:'Geo',kind:'list',ph:'ru, us, de',hint:'ISO codes, comma-separated'},
-  {k:'city',l:'City',g:'Geo',kind:'list',ph:'moscow, new york'},
-  {k:'region',l:'Region',g:'Geo',kind:'list',ph:'ISO region codes'},
-  {k:'timezone',l:'Time zone',g:'Geo',kind:'list',ph:'+3, +5:30 or Europe/Moscow',hint:'UTC offset or zone name; needs the City database'},
-  {k:'asn',l:'ASN',g:'Network',kind:'list',ph:'AS15169, 32934',hint:'autonomous system numbers; needs the ASN database'},
-  {k:'org',l:'Organization',g:'Network',kind:'list',ph:'google, amazon or /hosting|cloud/i',hint:'network owner: text or /regex/'},
+  {k:'country',l:'Country',g:'Geo',kind:'list',m:'is',ph:'ru, us, de',hint:'two-letter country codes'},
+  {k:'city',l:'City',g:'Geo',kind:'list',m:'is',ph:'moscow, new york'},
+  {k:'region',l:'Region',g:'Geo',kind:'list',m:'is',ph:'region codes, e.g. mow'},
+  {k:'timezone',l:'Time zone',g:'Geo',kind:'list',m:'is',ph:'+3, +5:30, Europe/Moscow',hint:'UTC offset or zone name; needs the City database'},
+  {k:'asn',l:'ASN',g:'Network',kind:'list',m:'is',ph:'AS15169, 32934',hint:'autonomous system numbers; needs the ASN database'},
+  {k:'org',l:'Organization',g:'Network',kind:'list',m:'has',rx:1,ph:'google, amazon, hetzner',hint:'the network’s owner — any part of the name'},
   {k:'operators',l:'Mobile operator',g:'Network',kind:'ops'},
   {k:'ip_list',l:'IP list',g:'Network',kind:'iplist'},
   {k:'device',l:'Device type',g:'Device',kind:'device'},
-  {k:'brand',l:'Brand',g:'Device',kind:'list',ph:'Apple, Samsung, Xiaomi'},
-  {k:'os',l:'OS',g:'Device',kind:'list',ph:'Android, Android 13, iOS 16'},
-  {k:'browser',l:'Browser',g:'Device',kind:'list',ph:'Chrome, Safari 16'},
+  {k:'brand',l:'Brand',g:'Device',kind:'list',m:'is',ph:'Apple, Samsung, Xiaomi'},
+  {k:'os',l:'OS',g:'Device',kind:'list',m:'is',ph:'Android, Android 13, iOS 16'},
+  {k:'browser',l:'Browser',g:'Device',kind:'list',m:'is',ph:'Chrome, Safari 16'},
   {k:'yabrowser',l:'Yandex Browser',g:'Device',kind:'tri',opts:['any','exclude','only Yandex Browser']},
-  {k:'lang',l:'Language',g:'Request',kind:'list',ph:'ru, en'},
-  {k:'referer_text',l:'Referer',g:'Request',kind:'list',ph:'text or /regex/'},
+  {k:'lang',l:'Language',g:'Request',kind:'list',m:'is',ph:'ru, en'},
+  {k:'referer_text',l:'Referer',g:'Request',kind:'list',m:'has',rx:1,ph:'google., facebook.com',hint:'any part of the address'},
   {k:'has_referer',l:'Referer present',g:'Request',kind:'tri',opts:['any','required','must be absent']},
-  {k:'domain_text',l:'Source domain',g:'Request',kind:'list',ph:'example.com or /regex/'},
-  {k:'key_text',l:'Keyword',g:'Request',kind:'list',ph:'text or /regex/'},
-  {k:'get',l:'URL parameter',g:'Request',kind:'list',ph:'utm_source=fb, sub1',hint:'name=value, or just a name that must be present'},
-  {k:'ua_text',l:'User-Agent',g:'Request',kind:'list',ph:'text or /regex/'},
+  {k:'domain_text',l:'Source domain',g:'Request',kind:'list',m:'dom',rx:1,ph:'example.com'},
+  {k:'key_text',l:'Keyword',g:'Request',kind:'list',m:'has',rx:1,ph:'buy, cheap',hint:'any part of the keyword'},
+  {k:'get',l:'URL parameter',g:'Request',kind:'list',m:'is',ph:'utm_source=fb, sub1',hint:'name=value, or just a name that must be present'},
+  {k:'ua_text',l:'User-Agent',g:'Request',kind:'list',m:'has',rx:1,ph:'iPhone, Android',hint:'any part of the User-Agent'},
   {k:'unique',l:'Unique',g:'Visit',kind:'tri',opts:['any','unique only','repeat visits only']},
   {k:'schedule',l:'Days of week',g:'Visit',kind:'schedule'},
   {k:'limit',l:'Impression limit',g:'Visit',kind:'limit'},
@@ -857,25 +1017,42 @@ function configured(r,c){
   }
   return false;
 }
-// One chip per configured condition — a stream reads as a sentence.
+// One chip per configured condition — a stream reads as a sentence:
+// "country ru, us", "organization contains amazon, google +5".
 function condChips(s,hit){
   const r=s.rules||{}, out=[];
-  const chip=(c,v)=>out.push(`<span class="chip ${hit===c.k?'hit':''}" title="${esc(c.l+': '+v)}"><span class="k">${esc(c.l.toLowerCase())}</span><span class="v">${esc(v)}</span></span>`);
+  const chip=(c,head,v,full,warn)=>out.push(`<span class="chip ${hit===c.k?'hit':warn?'warn':''}" title="${esc(c.l+' '+full+(warn?' — '+warn+'; the engine cannot use it and this condition never matches':''))}">${warn?icon('alert'):''}${head?`<span class="k">${esc(head)}</span>`:''}<span class="v">${esc(v)}</span></span>`);
+  const few=(ws,show)=>ws.slice(0,3).map(show||(w=>w)).join(', ')+(ws.length>3?' +'+(ws.length-3):'');
   COND.forEach(c=>{
     if(!configured(r,c))return;
+    const lc=c.l.toLowerCase();
     switch(c.kind){
-      case 'list':{const f=r[c.k],vals=(f.values&&f.values.length?f.values:[f.raw]);chip(c,(f.flag===1?'not ':'')+vals.slice(0,3).join(', ')+(vals.length>3?' +'+(vals.length-3):''));break}
-      case 'device':{const ok=['computer','phone','tablet'].filter(d=>!r[d]);chip(c,ok.length?ok.join(', '):'none');break}
-      case 'ops':{const o=r.operators,ks=Object.keys(o);chip(c,ks.map(k=>(o[k]===2?'':'not ')+k).slice(0,3).join(', ')+(ks.length>3?' +'+(ks.length-3):''));break}
-      case 'tri':chip(c,c.opts[r[c.k]]||'?');break;
-      case 'iplist':chip(c,(r.ip_list.flag===1?'not in ':'in ')+r.ip_list.file);break;
-      case 'schedule':{const d=(r.schedule.days||[]).map((on,i)=>on?DAYS[i]:null).filter(Boolean);chip(c,d.length===7?'every day':(d.join(' ')||'never'));break}
-      case 'limit':{const l=r.limit;chip(c,l.count+(l.type===2?' per '+(l.seconds||86400)+' s':' per day'));break}
+      case 'list':{
+        const f=r[c.k], L=listForm(f,c.rx), [yes,no]=condOps(c.m,L.form), neg=f.flag===1;
+        const head=lc+(neg?' '+(no==='is not'?'not':no):(yes==='is'?'':' '+yes));
+        if(L.form==='regex'){chip(c,head,L.raw,(neg?no:yes)+' '+L.raw,rxProblem(L.raw));break}
+        chip(c,head,few(L.words,w=>c.k==='country'&&flag(w)?flag(w)+' '+w:w),(neg?no:yes)+' '+L.words.join(', '));
+        break}
+      case 'device':{const ok=['computer','phone','tablet'].filter(d=>!r[d]);chip(c,lc,ok.join(', ')||'none','is '+(ok.join(', ')||'none'));break}
+      case 'ops':{const o=r.operators,v=Object.keys(o).map(k=>(o[k]===2?'':'not ')+k);chip(c,lc,few(v),v.join(', '));break}
+      case 'tri':{const v=c.opts[r[c.k]]||'?';chip(c,c.k==='unique'?'':lc,v,v);break}
+      case 'iplist':{const f=r.ip_list,n=String(f.file).replace(/\.dat$/,''),h=f.flag===1?'not in list':'in list';chip(c,h,n,h+' '+n);break}
+      case 'schedule':{const d=dayList(r.schedule.days);chip(c,'days',d,d);break}
+      case 'limit':{const l=r.limit,v=fmt(l.count)+' per '+(l.type===2?humanSeconds(l.seconds):'day');chip(c,'limit',v,v);break}
     }
   });
   return out.length?out.join(''):'<span class="chip any">any visitor</span>';
 }
-const variantsOf=(out)=>String(out||'').split('|||').filter(x=>x.trim()).length;
+const variantsOf=(out)=>splitVariants(out).length;
+// An output on the canvas: one text, or its variants one per line.
+function outHTML(red,out){
+  if(NOOUT.has(red))return '';
+  const vs=splitVariants(out);
+  if(!vs.length)return '<div class="out"><span class="subtle">empty</span></div>';
+  if(vs.length===1)return `<div class="out" title="${esc(vs[0])}">${macroHTML(esc(firstLine(vs[0])))}</div>`;
+  const cut=vs.length>3?2:3;
+  return `<div class="vl">${vs.slice(0,cut).map((v,i)=>`<div title="${esc(v)}"><i>${i+1}</i><span>${macroHTML(esc(firstLine(v)))}</span></div>`).join('')}${vs.length>cut?`<div><i></i><span>+ ${vs.length-cut} more</span></div>`:''}</div>`;
+}
 const linkTargets=(g)=>{const t=new Set();if(g.redirect==='group'&&g.out)t.add(g.out.trim());(g.streams||[]).forEach(s=>{if((s.out||{}).redirect==='group'&&s.out.out)t.add(s.out.out.trim())});return [...t]};
 const groupById=(id)=>(GROUPS||[]).find(g=>g.id===id||(g.aliases||[]).includes(id))||null;
 
@@ -894,6 +1071,8 @@ async function saveFlows(){
   // The ID is the first path segment of the link, so it cannot hold what ends one.
   const bad=ids.find(x=>/[\s\/?#]/.test(x));
   if(bad)throw new Error('Flow ID "'+bad+'" must not contain spaces, /, ? or #');
+  const badA=GROUPS.flatMap(g=>g.aliases||[]).find(x=>/[\s\/?#]/.test(x));
+  if(badA)throw new Error('Alias "'+badA+'" must not contain spaces, /, ? or #');
   await call('PUT','/api/groups',GROUPS);
   SAVED=JSON.stringify(GROUPS);
 }
@@ -1003,10 +1182,10 @@ function renderFlow(){
       </div>
       ${lbl(sp.hits)}
       <div class="dest" data-dest="${i}">
-        <div class="meta"><span class="pill acc">${esc(typeLabel(o.redirect))}</span>${nv>1?`<span class="pill">${nv} variants · ${esc(o.distribution||'random')}</span>`:''}
+        <div class="meta"><span class="pill acc">${esc(typeLabel(o.redirect))}</span>${nv>1&&!isLink?`<span class="pill">${nv} variants · ${esc(DIST[o.distribution]||DIST.random)}</span>`:''}
           ${bt.redirect&&bt.redirect!=='skip'?`<span class="pill warn">${icon('bot')}bots → ${esc(typeLabel(bt.redirect))}</span>`:''}</div>
         ${isLink?`<div class="row"><b>${esc(o.out||'—')}</b>${groupById((o.out||'').trim())?`<button class="link" data-goto="${esc((o.out||'').trim())}">open flow ${icon('arrow')}</button>`:'<span class="pill bad">no such flow</span>'}</div>`
-          :NOOUT.has(o.redirect)?'':`<div class="out" title="${esc(o.out||'')}">${esc(firstLine(o.out))||'<span class="subtle">empty</span>'}</div>`}
+          :outHTML(o.redirect,o.out)}
         ${sp.hits?`<div class="hint num">${isLink?fmt(sp.hits)+' sent on':fmt(sp.bots)+' bots · '+fmt(sp.conv)+' conv'+(sp.profit?' · '+money(sp.profit):'')}</div>`:''}
       </div></div>`}).join('');
   const dflt=step&&step.selected==='-'?`<span class="verdict y">${icon('check')}default</span>`:'';
@@ -1034,9 +1213,9 @@ function renderFlow(){
       <div class="frow" id="fbrow">
         <div class="node fb" id="fbnode"><div class="hd"><span class="nm">No stream matched</span>${dflt}</div><div class="hint">everyone left over gets the flow's default</div></div>
         ${lbl(fb.hits)}
-        <div class="dest fb" id="fbdest"><div class="meta"><span class="pill">${esc(typeLabel(g.redirect||'stop'))}</span></div>
+        <div class="dest fb" id="fbdest"><div class="meta"><span class="pill">${esc(typeLabel(g.redirect||'stop'))}</span>${g.redirect!=='group'&&variantsOf(g.out)>1?`<span class="pill">${variantsOf(g.out)} variants · ${DIST.random}</span>`:''}</div>
           ${g.redirect==='group'?`<div class="row"><b>${esc(g.out||'—')}</b>${groupById((g.out||'').trim())?`<button class="link" data-goto="${esc((g.out||'').trim())}">open flow ${icon('arrow')}</button>`:'<span class="pill bad">no such flow</span>'}</div>`
-            :NOOUT.has(g.redirect||'stop')?'':`<div class="out" title="${esc(g.out||'')}">${esc(firstLine(g.out))||'<span class="subtle">empty</span>'}</div>`}</div>
+            :outHTML(g.redirect||'stop',g.out)}</div>
       </div>
     </div>
     <div class="fstats" style="margin-top:14px"><span><b>${fmt(p.hits)}</b>visits</span><span><b>${fmt(p.unique)}</b>unique</span><span><b>${fmt(p.bots)}</b>bots</span><span><b>${fmt(p.conv)}</b>conversions</span><span><b>${money(p.profit)}</b>profit</span><span><b>${pct(p.conv,p.hits)}</b>CR</span><span>${periodLabel()}</span>
@@ -1215,9 +1394,10 @@ function paintTester(){
 
 /* ---------- stream editor (drawer) ---------- */
 let COND_OPEN=new Set();   // conditions added in this drawer but not filled in yet
+let COND_RX=new Set();     // conditions edited as a regular expression in this drawer
 function openStream(i,focus){
   const g=CUR, s=g.streams[i]; if(!s)return;
-  EDIT=i; COND_OPEN=new Set();
+  EDIT=i; COND_OPEN=new Set(); COND_RX=new Set();
   const el=$(`<aside class="drawer" id="sdrawer">
     <div class="dh"><span class="pill acc">#${i+1}</span><input class="name" id="s_name" placeholder="stream name" autocomplete="off">
       <label class="sw" title="Stream on / off"><input type="checkbox" id="s_status"><i></i></label>
@@ -1241,11 +1421,11 @@ function openStream(i,focus){
 function paintStream(){
   const body=q('#s_body'); if(!body||EDIT<0)return;
   const g=CUR, s=g.streams[EDIT], r=s.rules||{}, o=s.out||{}, bt=s.bots||{}, rm=s.remote||{}, am=s.api_mac||{}, sp=s.separation||{};
-  const keep=body.scrollTop;
+  const keep=body.scrollTop, was=new Set(qa('details.sec[open]',body).map(x=>x.id));
   const shown=COND.filter(c=>configured(r,c)||COND_OPEN.has(c.k));
-  const red=o.redirect||'http_redirect', others=GROUPS.filter(x=>x!==g);
-  const nbots=BOTCHK.filter(([id])=>bt[id]).length;
-  const advOn=!!((o.chance&&o.chance!==100)||o.header||sp.enabled||rm.enabled||s.curl||s.b_curl||am.enabled);
+  const red=o.redirect||'http_redirect', bred=bt.redirect||'skip', others=GROUPS.filter(x=>x!==g);
+  const nbots=BOTCHK.filter(([id])=>bt[id]).length, nv=variantsOf(o.out);
+  const advOn=!!((o.chance&&o.chance!==100)||o.header||sp.enabled||rm.enabled||am.enabled);
   const hitK=SIM&&SIM.path[0].streams[EDIT]&&SIM.path[0].streams[EDIT].why;
   body.innerHTML=`
     <div class="sec" id="sec-when">
@@ -1256,29 +1436,30 @@ function paintStream(){
     <div class="sec" id="sec-then">
       <div class="st"><span class="n">2</span>Then</div>
       <div class="types">${QUICK.map(t=>`<button type="button" class="type ${red===t?'on':''}" data-type="${t}">${TYPES[t][0]}<small>${TYPES[t][1]}</small></button>`).join('')}</div>
-      <div class="g2">
-        <div class="fld"><label>Type</label>${sel('s_redirect',Object.keys(TYPES).map(t=>opt(t,TYPES[t][0],red)).join(''))}</div>
-        <div class="fld" ${red==='group'?'hidden':''}><label>Several variants (<code>|||</code>)</label>${sel('s_dist',opt('random','pick at random',o.distribution||'random')+opt('rotator','rotate per visitor (cookie)',o.distribution)+opt('evenly','evenly, in turn',o.distribution))}</div>
-      </div>
+      <div class="g2"><div class="fld"><label>Type</label>${sel('s_redirect',Object.keys(TYPES).map(t=>opt(t,TYPES[t][0],red)).join(''))}</div></div>
       ${red==='group'
         ?`<div class="fld"><label>Send the visitor to flow</label>${others.length?sel('s_group','<option value="">— choose a flow —</option>'+others.map(x=>opt(x.id,x.id+(x.name?' — '+x.name:''),(o.out||'').trim())).join('')):'<div class="hint">There is no other flow yet. Create one first.</div>'}
             <div class="hint">Its streams are tried with the same visitor; the log shows the flow that finally served them.</div></div>`
-        :`<div class="fld"><label>${red==='http_redirect'||red==='curl'?'URL':'Output'}</label><textarea id="s_out" class="mono" spellcheck="false" placeholder="${red==='http_redirect'?'https://example.com/?sub=[CID]&amp;kw=[KEY]':''}">${esc(o.out)}</textarea>
-            <div class="hint">Macros: [KEY] [CID] [IP] [COUNTRY] [CITY] [REGION] [LANG] [DEVICE] [OPERATOR] [DOMAIN] [ASN] [ORG] [TIMEZONE] [UTC] [PAR-1..5] [PATH] [RANDNUM-a-b] [RANDLINE-(file)-n] [REMOTE]</div></div>`}
+        :NOOUT.has(red)?`<div class="hint">A fixed answer — there is nothing to fill in.</div>`
+        :`<div class="fld"><label>${outLabel(red)}</label>${variantsField('s_outv',o.out,!URLISH.has(red),outPH(red),'s_distw')}
+            <div class="hint">Macros: [KEY] [CID] [IP] [COUNTRY] [CITY] [REGION] [LANG] [DEVICE] [OPERATOR] [DOMAIN] [ASN] [ORG] [TIMEZONE] [UTC] [PAR-1..5] [PATH] [RANDNUM-a-b] [RANDLINE-(file)-n] [REMOTE]</div></div>
+          <div class="fld" id="s_distw" ${nv<2?'hidden':''}><label>Which variant a visit gets</label>${sel('s_dist',opt('random','a random one',o.distribution||'random')+opt('rotator','the next one for each visitor (cookie)',o.distribution)+opt('evenly','the next one in turn, evenly for everyone',o.distribution))}</div>
+          ${red==='curl'?`<div class="fld"><label>Change the fetched page — find → replace</label>${rewriteField('s_rw',s.curl)}<div class="hint">Any letter case; macros work in both.</div></div>`:''}`}
     </div>
-    <details class="sec" id="sec-bots" ${bt.redirect&&bt.redirect!=='skip'||nbots?'open':''}>
-      <summary><span class="n">3</span>Bots<span class="hint" style="font-weight:400">${nbots?nbots+' signal'+(nbots===1?'':'s'):'no detection'} · ${bt.redirect&&bt.redirect!=='skip'?'get '+esc(typeLabel(bt.redirect)):'same as humans'}</span></summary>
+    <details class="sec" id="sec-bots" ${was.has('sec-bots')||bred!=='skip'||nbots?'open':''}>
+      <summary><span class="n">3</span>Bots<span class="hint" style="font-weight:400">${nbots?nbots+' signal'+(nbots===1?'':'s'):'no detection'} · ${bred!=='skip'?'get '+esc(typeLabel(bred)):'same as humans'}</span></summary>
       <div class="lbl" style="margin-bottom:8px">Treat as a bot when</div>
       <div class="togs">${BOTCHK.map(([id,l])=>`<label class="tog"><input type="checkbox" id="b_${id}" ${bt[id]?'checked':''}>${l}</label>`).join('')}</div>
       <div class="g2">
-        <div class="fld"><label>Bots get</label>${sel('b_redirect',opt('skip','the same as humans',bt.redirect||'skip')+Object.keys(TYPES).filter(t=>t!=='group').map(t=>opt(t,TYPES[t][0],bt.redirect)).join(''))}</div>
-        <div class="fld"><label>Content-Type for bots</label>${sel('b_header',HEADERS.map(x=>opt(x,x,bt.header||'text/html')).join(''))}</div>
+        <div class="fld"><label>Bots get</label>${sel('b_redirect',opt('skip','the same as humans',bred)+Object.keys(TYPES).filter(t=>t!=='group').map(t=>opt(t,TYPES[t][0],bred)).join(''))}</div>
+        ${bred==='skip'?'':`<div class="fld"><label>Content-Type for bots</label>${sel('b_header',HEADERS.map(x=>opt(x,x,bt.header||'text/html')).join(''))}</div>`}
       </div>
-      <div class="fld"><label>Output for bots</label><textarea id="b_out" class="mono" spellcheck="false" style="min-height:56px">${esc(bt.out||'')}</textarea></div>
+      ${bred==='skip'||NOOUT.has(bred)?'':`<div class="fld"><label>${outLabel(bred)} for bots</label>${variantsField('b_outv',bt.out,!URLISH.has(bred),outPH(bred))}<div class="hint">Several variants are chosen the same way as for people.</div></div>`}
+      ${bred==='curl'?`<div class="fld"><label>Change the page for bots — find → replace</label>${rewriteField('b_rw',s.b_curl)}</div>`:''}
       <label class="chk"><input type="checkbox" id="b_save_ip" ${bt.save_ip?'checked':''}>add detected bot IPs to the search-engine lists</label>
     </details>
-    <details class="sec" id="sec-adv" ${advOn?'open':''}>
-      <summary>Advanced<span class="hint" style="font-weight:400">chance · content type · separation · [REMOTE] · proxy rewrite · API</span></summary>
+    <details class="sec" id="sec-adv" ${was.has('sec-adv')||advOn?'open':''}>
+      <summary>Advanced<span class="hint" style="font-weight:400">chance · content type · separation · [REMOTE] · API</span></summary>
       <div class="g2">
         <div class="fld"><label>Show chance, % (JavaScript types)</label><input type="number" id="s_chance" min="0" max="100" value="${o.chance==null?100:o.chance}"></div>
         <div class="fld"><label>Content-Type</label>${sel('s_header',opt('','the flow’s',o.header||'')+HEADERS.map(x=>opt(x,x,o.header||'')).join(''))}</div>
@@ -1292,10 +1473,6 @@ function paintStream(){
         <div class="fld"><label>Cache, seconds</label><input type="number" id="rm_cache" value="${rm.cache||0}"></div>
       </div>
       <div class="fld"><label>Fallback when the fetch fails</label><input id="rm_res" class="mono" value="${esc(rm.reserved||'')}"></div>
-      <div class="g2">
-        <div class="fld"><label>Proxy rewrite (find|||replace per line)</label><textarea id="s_curl" class="mono" spellcheck="false" style="min-height:56px">${esc(s.curl||'')}</textarea></div>
-        <div class="fld"><label>…for bots</label><textarea id="b_curl" class="mono" spellcheck="false" style="min-height:56px">${esc(s.b_curl||'')}</textarea></div>
-      </div>
       <label class="chk"><input type="checkbox" id="am_en" ${am.enabled?'checked':''}>API: return a mac code</label>
       <div class="g2">
         <div class="fld"><label>Code (macros allowed)</label><input id="am_code" class="mono" value="${esc(am.code||'')}"></div>
@@ -1312,28 +1489,54 @@ function paintStream(){
     const m=menu(e.currentTarget,[{node}]);
     qa('[data-c]',m).forEach(b=>b.onclick=()=>{
       closeMenu(); collectStream(); COND_OPEN.add(b.dataset.c); paintStream();
-      const row=q(`.crow[data-cond="${b.dataset.c}"]`); const f=row&&q('input.g,select,input[type=number]',row); if(f)f.focus({preventScroll:true});
+      const row=q(`.crow[data-cond="${b.dataset.c}"]`); const f=row&&(q('.tin',row)||q('input.g,select,input[type=number]',row)); if(f)f.focus({preventScroll:true});
     });
   };
   qa('[data-rm]',body).forEach(b=>b.onclick=()=>{
-    collectStream(); resetCond(CUR.streams[EDIT].rules,b.dataset.rm); COND_OPEN.delete(b.dataset.rm);
+    collectStream(); resetCond(CUR.streams[EDIT].rules,b.dataset.rm); COND_OPEN.delete(b.dataset.rm); COND_RX.delete(b.dataset.rm);
     paintStream(); SIM=null; markDirty(); renderFlow();
   });
+  // A text condition switches between a word list and a regular expression.
+  qa('[data-rxon]',body).forEach(b=>b.onclick=()=>{const k=b.dataset.rxon;collectStream();COND_RX.add(k);COND_OPEN.add(k);paintStream();const f=q('#f_'+k+'_rx');if(f)f.focus()});
+  qa('[data-rxoff]',body).forEach(b=>b.onclick=()=>{const k=b.dataset.rxoff;collectStream();COND_RX.delete(k);COND_OPEN.add(k);paintStream();const f=q(`#f_${k}_t .tin`);if(f)f.focus()});
+  // As an expression is typed: what is wrong with it, and whether it still reads as words.
+  qa('input.g[id$="_rx"]',body).forEach(i=>i.addEventListener('input',()=>{
+    const row=i.closest('.crow'), s=rxText(i.value), p=s?rxProblem(s):'', w=q('[data-rxbad]',row), off=q('[data-rxoff]',row);
+    w.textContent=p; w.hidden=!p; off.hidden=!!s&&!altWords(s);
+  }));
   qa('[data-type]',body).forEach(b=>b.onclick=()=>{q('#s_redirect',body).value=b.dataset.type;q('#s_redirect',body).dispatchEvent(new Event('change',{bubbles:true}))});
   q('#s_redirect',body).addEventListener('change',()=>setTimeout(paintStream,0));
+  q('#b_redirect',body).addEventListener('change',()=>setTimeout(paintStream,0));
   const addop=q('#addop',body); if(addop)addop.onclick=()=>{q('#ops',body).insertAdjacentHTML('beforeend',oprow('',1));bindOps()};
-  bindOps();
+  bindOps(); bindTags(body); bindVariants(body); bindRewrite(body);
 }
 function condRow(c,r,hit){
   let b='';
-  const mode=(id,cur)=>sel(id,opt(2,'is',cur||2)+opt(1,'is not',cur||2));
   switch(c.kind){
-    case 'list':{const f=(r&&r[c.k])||{};b=`${mode('f_'+c.k+'_f',f.flag)}<input class="g" id="f_${c.k}_v" value="${esc((f.values||[]).join(', ')||f.raw||'')}" placeholder="${esc(c.ph||'')}" autocomplete="off">${c.hint?`<div class="hint">${c.hint}</div>`:''}`;break}
+    case 'list':{
+      const f=(r&&r[c.k])||{}, L=listForm(f,c.rx), asRx=c.rx&&(L.form==='regex'||COND_RX.has(c.k));
+      const [yes,no]=condOps(c.m,asRx?'regex':L.form);
+      b=sel('f_'+c.k+'_f',opt(2,yes,f.flag||2)+opt(1,no,f.flag||2));
+      if(asRx){
+        // Words switched to an expression mean the same: anywhere, any case —
+        // or, for a domain, the whole name.
+        const w=L.words.map(reEsc).join('|'), cur=L.form!=='words'?L.raw:!L.words.length?'':c.m==='dom'?'/^(?:'+w+')$/i':'/'+w+'/i', bad=cur?rxProblem(cur):'';
+        b+=`<input class="g mono" id="f_${c.k}_rx" value="${esc(cur)}" placeholder="/^Mozilla.*Android/i" autocomplete="off" spellcheck="false">
+          <div class="hint bad" data-rxbad ${bad?'':'hidden'}>${esc(bad)}</div>
+          <div class="hint">A regular expression between slashes; <code>i</code> after the last one ignores letter case. <button type="button" class="link" data-rxoff="${c.k}" ${!cur||altWords(cur)?'':'hidden'}>Use a list of words</button></div>`;
+      }else{
+        b+=tagField('f_'+c.k+'_t',L.words,c.ph,{form:L.form,orig:L.form==='alt'?L.raw:'',flags:L.flags,cc:c.k==='country'});
+        // Text is compared in any letter case — unless the words are stored as an expression without i.
+        const searching=c.m==='has'||(c.m==='dom'&&L.form==='alt');
+        const notes=[c.hint,searching?(L.form==='alt'&&!L.flags.includes('i')?'letter case matters':'any letter case'):''].filter(Boolean).join(' · ');
+        b+=`<div class="hint">${esc(notes)}${c.rx?`${notes?' · ':''}<button type="button" class="link" data-rxon="${c.k}">Use a regular expression</button>`:''}</div>`;
+      }
+      break}
     case 'device':b=['computer','phone','tablet'].map(d=>`<label class="tog"><input type="checkbox" id="d_${d}" ${r[d]?'':'checked'}>${d}s</label>`).join('')+'<div class="hint">checked = allowed</div>';break;
     case 'ops':{const ops=r.operators||{};b=`<div id="ops" style="width:100%">${Object.keys(ops).map(x=>oprow(x,ops[x])).join('')}</div><button class="sm" id="addop" type="button">${icon('plus')}operator</button><div class="hint">names are the “# label” lines of wap.dat</div>`;break}
     case 'tri':b=sel('r_'+c.k,c.opts.map((l,i)=>opt(i,l,r[c.k]||0)).join(''));break;
     case 'iplist':{const f=r.ip_list||{};b=`${sel('f_iplist_f',opt(2,'in list',f.flag||2)+opt(1,'not in list',f.flag||2))}<input class="g" id="f_iplist_file" value="${esc(f.file||'')}" placeholder="name.dat in the data directory">`;break}
-    case 'schedule':{const d=(r.schedule&&r.schedule.days)||[];b=DAYS.map((n,i)=>`<label class="tog"><input type="checkbox" class="schd" data-d="${i}" ${d[i]?'checked':''}>${n}</label>`).join('')+'<div class="hint">the stream works on the checked days</div>';break}
+    case 'schedule':{const d=(r.schedule&&r.schedule.days)||[];b=WEEK.map(i=>`<label class="tog"><input type="checkbox" class="schd" data-d="${i}" ${d[i]?'checked':''}>${DAYS[i]}</label>`).join('')+'<div class="hint">the stream works on the checked days</div>';break}
     case 'limit':{const l=r.limit||{};b=`<input type="number" id="lim_count" value="${l.count||0}" style="width:110px">${sel('lim_type',opt(1,'per day',l.type||1)+opt(2,'per period of',l.type))}<input type="number" id="lim_sec" value="${l.seconds||0}" style="width:110px"><span class="muted">seconds</span><div class="hint">“per day” resets at UTC midnight; a period of 0 means 24 h</div>`;break}
   }
   return `<div class="crow ${hit?'hit':''}" data-cond="${c.k}"><div class="cl">${c.l}${hit?' — this is what stopped the test visitor':''}</div><button class="icon sm ghost cx" data-rm="${c.k}" title="Remove" type="button">${icon('x')}</button><div class="cv">${b}</div></div>`;
@@ -1352,18 +1555,105 @@ function resetCond(r,k){
 }
 function oprow(name,fl){return `<div class="oprow"><input class="op-n" placeholder="name (as in wap.dat)" value="${esc(name)}"><select class="op-f">${opt(1,'block',fl)+opt(2,'require',fl)}</select><button class="op-x icon sm ghost" type="button" title="Remove">${icon('x')}</button></div>`}
 function bindOps(){qa('.op-x').forEach(b=>b.onclick=()=>{const d=b.closest('.drawer');b.closest('.oprow').remove();d.dispatchEvent(new Event('input',{bubbles:true}))})}
+const changed=(el)=>el.dispatchEvent(new Event('input',{bubbles:true}));
+
+// A list edited as chips: type and press Enter or a comma, or paste a list;
+// Backspace in the empty field removes the last one. What is still typed
+// counts too, so Save never loses it.
+function tagField(id,words,ph,o){
+  o=o||{};
+  return `<div class="tags" id="${id}" data-form="${o.form||'words'}" data-orig="${esc(o.orig||'')}" data-flags="${esc(o.flags||'')}" ${o.cc?'data-cc':''}>${words.map(w=>tagHTML(w,o.cc)).join('')}<input class="tin" placeholder="${esc(words.length?'':ph||'')}" autocomplete="off" spellcheck="false"></div>`;
+}
+const tagHTML=(w,cc)=>`<span class="tag" data-v="${esc(w)}">${cc&&flag(w)?flag(w)+' ':''}<span>${esc(w)}</span><button type="button" data-tx title="Remove">${icon('x')}</button></span>`;
+// Words stored as an expression without i are compared in their letter case:
+// there "Buy" and "buy" are two words.
+const tagCS=(t)=>t.dataset.form==='alt'&&!(t.dataset.flags||'').includes('i');
+// What is typed and not among the chips yet (a repeat is dropped).
+const tagNew=(t)=>{
+  const cs=tagCS(t), key=(x)=>cs?x:x.toLowerCase(), have=new Set(qa('.tag',t).map(x=>key(x.dataset.v)));
+  return splitList(q('.tin',t).value,cs).filter(v=>!have.has(key(v)));
+};
+// The chips exactly as they are, plus what is typed and not among them yet.
+const tagValues=(t)=>[...qa('.tag',t).map(x=>x.dataset.v),...tagNew(t)];
+function bindTags(root){
+  qa('.tags',root).forEach(t=>{
+    const inp=q('.tin',t);
+    const commit=()=>{
+      const add=tagNew(t);
+      if(!inp.value.trim())return false;
+      add.forEach(v=>inp.insertAdjacentHTML('beforebegin',tagHTML(v,t.hasAttribute('data-cc'))));
+      inp.value=''; inp.placeholder=''; return true;
+    };
+    t.onclick=e=>{
+      const x=e.target.closest('[data-tx]');
+      if(x){x.closest('.tag').remove();changed(t);inp.focus();return}
+      if(e.target===t)inp.focus();
+    };
+    inp.onkeydown=e=>{
+      if(e.isComposing)return;   // Enter that finishes an IME composition is not a new chip
+      if(e.key==='Enter'||e.key===','){e.preventDefault();if(commit())changed(t)}
+      else if(e.key==='Backspace'&&!inp.value){const last=qa('.tag',t).pop();if(last){last.remove();changed(t)}}
+    };
+    inp.onpaste=e=>{const s=(e.clipboardData||window.clipboardData).getData('text');if(/[,|\n]/.test(s)){e.preventDefault();inp.value+=s;commit();changed(t)}};
+    inp.onblur=()=>{if(commit())changed(t)};
+  });
+}
+
+// Output variants, one per row. A second variant brings up the choice of how
+// visits are spread (the element named by data-dist).
+function variantsField(id,out,multi,ph,distId){
+  const vs=splitVariants(out); if(!vs.length)vs.push('');
+  return `<div class="vars" id="${id}" data-multi="${multi?1:0}" data-ph="${esc(ph||'')}" data-dist="${distId||''}">${vs.map((v,i)=>varRow(v,i,multi,ph,vs.length>1)).join('')}</div>
+    <button type="button" class="sm" data-addvar="${id}">${icon('plus')}Add a variant</button>`;
+}
+function varRow(v,i,multi,ph,canDel){
+  const f=multi?`<textarea class="mono" spellcheck="false" placeholder="${esc(ph||'')}">${esc(v)}</textarea>`
+    :`<input class="mono" value="${esc(v)}" placeholder="${esc(ph||'')}" autocomplete="off" spellcheck="false">`;
+  return `<div class="var"><span class="vn">${i+1}</span>${f}<button type="button" class="icon sm ghost" data-delvar title="Remove this variant" ${canDel?'':'hidden'}>${icon('x')}</button></div>`;
+}
+const readVariants=(box)=>joinVariants(qa('.var input,.var textarea',box).map(x=>x.value));
+function bindVariants(root){
+  const sync=(box)=>{
+    const rows=qa('.var',box);
+    rows.forEach((r,i)=>{q('.vn',r).textContent=i+1;q('[data-delvar]',r).hidden=rows.length<2});
+    const w=box.dataset.dist&&q('#'+box.dataset.dist,root); if(w)w.hidden=rows.length<2;
+  };
+  const del=(b)=>b.onclick=()=>{const box=b.closest('.vars');b.closest('.var').remove();sync(box);changed(box)};
+  qa('[data-delvar]',root).forEach(del);
+  qa('[data-addvar]',root).forEach(b=>b.onclick=()=>{
+    const box=q('#'+b.dataset.addvar,root);
+    box.insertAdjacentHTML('beforeend',varRow('',0,box.dataset.multi==='1',box.dataset.ph,true));
+    del(q('[data-delvar]',box.lastElementChild)); sync(box);
+    q('input,textarea',box.lastElementChild).focus(); changed(box);
+  });
+}
+
+// Page rewrites for "Proxy a page": find → replace, one pair per row.
+function rewriteField(id,text){
+  return `<div class="rws" id="${id}">${rewriteRows(text).map(r=>rwRow(r.find,r.repl)).join('')}</div>
+    <button type="button" class="sm" data-addrw="${id}">${icon('plus')}Add a replacement</button>`;
+}
+const rwRow=(f,r)=>`<div class="rwrow"><input class="mono rw-f" value="${esc(f)}" placeholder="find" spellcheck="false"><span>→</span><input class="mono rw-r" value="${esc(r)}" placeholder="replace with" spellcheck="false"><button type="button" class="icon sm ghost" data-delrw title="Remove">${icon('x')}</button></div>`;
+const readRewrite=(box)=>joinRewrite(qa('.rwrow',box).map(r=>({find:q('.rw-f',r).value,repl:q('.rw-r',r).value})));
+function bindRewrite(root){
+  const del=(b)=>b.onclick=()=>{const box=b.closest('.rws');b.closest('.rwrow').remove();changed(box)};
+  qa('[data-delrw]',root).forEach(del);
+  qa('[data-addrw]',root).forEach(b=>b.onclick=()=>{
+    const box=q('#'+b.dataset.addrw,root);
+    box.insertAdjacentHTML('beforeend',rwRow('',''));
+    del(q('[data-delrw]',box.lastElementChild)); q('.rw-f',box.lastElementChild).focus();
+  });
+}
 
 /* ---------- model ← stream form ---------- */
-function readLF(key){
-  const t=q('#f_'+key+'_v'), f=q('#f_'+key+'_f');
+function readLF(c){
+  const d=q('#sdrawer'), fl=d&&q('#f_'+c.k+'_f',d);
+  if(!fl)return{flag:0,values:[],raw:''};
+  const rx=q('#f_'+c.k+'_rx',d);
+  if(rx)return listValue(+fl.value,'regex',[],rx.value);
+  const t=q('#f_'+c.k+'_t',d);
   if(!t)return{flag:0,values:[],raw:''};
-  const raw=t.value.trim();
-  if(!raw)return{flag:0,values:[],raw:''};   // an empty list is no filter at all
-  // A /regex/ is a single value: splitting on commas would tear apart patterns
-  // like /a{2,3}/ and the router would then compile something else entirely.
-  if(raw.startsWith('/'))return{flag:+f.value,values:[raw],raw};
-  const vals=raw.split(/[\n,]/).map(x=>x.trim()).filter(Boolean);
-  return{flag:+f.value,values:vals,raw:vals.join(',')};
+  return listValue(+fl.value,t.dataset.form,tagValues(t),'',t.dataset.orig,t.dataset.flags);
 }
 function collectStream(){
   const d=q('#sdrawer'); if(!d||!CUR||EDIT<0)return;
@@ -1373,11 +1663,12 @@ function collectStream(){
   s.status=on('s_status');
   s.comment=val('s_comment').trim();
   const red=val('s_redirect'), prev=s.out||{};
-  s.out={redirect:red,out:red==='group'?(v('s_group')?val('s_group'):(prev.redirect==='group'?prev.out:'')):(v('s_out')?val('s_out'):(prev.redirect==='group'?'':prev.out||'')),
+  // A field that is not on screen (the type does not use it) keeps its value.
+  s.out={redirect:red,out:red==='group'?(v('s_group')?val('s_group'):(prev.redirect==='group'?prev.out:'')):(v('s_outv')?readVariants(v('s_outv')):(prev.redirect==='group'?'':prev.out||'')),
     chance:+val('s_chance')||0,distribution:v('s_dist')?val('s_dist'):(prev.distribution||'random'),header:val('s_header')};
   s.separation={enabled:on('sep_en'),file:val('sep_file').trim()};
   const r={};
-  COND.filter(c=>c.kind==='list').forEach(c=>{r[c.k]=has(c.k)?readLF(c.k):{flag:0,values:[],raw:''}});
+  COND.filter(c=>c.kind==='list').forEach(c=>{r[c.k]=has(c.k)?readLF(c):{flag:0,values:[],raw:''}});
   r.ip_list=has('ip_list')&&val('f_iplist_file').trim()?{flag:+val('f_iplist_f'),file:val('f_iplist_file').trim()}:{flag:0,file:''};
   if(has('device')){r.computer=on('d_computer')?0:1;r.phone=on('d_phone')?0:1;r.tablet=on('d_tablet')?0:1}
   else{r.computer=0;r.phone=0;r.tablet=0}
@@ -1388,11 +1679,13 @@ function collectStream(){
   r.schedule={enabled:has('schedule'),days};
   r.limit=has('limit')?{enabled:true,type:+val('lim_type'),count:+val('lim_count')||0,seconds:+val('lim_sec')||0}:{enabled:false,type:1,count:0,seconds:0};
   s.rules=r;
-  const bots={};
+  const bots={}, pb=s.bots||{};
   BOTCHK.forEach(([id])=>bots[id]=on('b_'+id));
-  bots.save_ip=on('b_save_ip'); bots.redirect=val('b_redirect')||'skip'; bots.header=val('b_header'); bots.out=val('b_out');
+  bots.save_ip=on('b_save_ip'); bots.redirect=val('b_redirect')||'skip';
+  bots.header=v('b_header')?val('b_header'):(pb.header||'text/html');
+  bots.out=v('b_outv')?readVariants(v('b_outv')):(pb.out||'');
   s.bots=bots;
-  s.curl=val('s_curl'); s.b_curl=val('b_curl');
+  s.curl=v('s_rw')?readRewrite(v('s_rw')):(s.curl||''); s.b_curl=v('b_rw')?readRewrite(v('b_rw')):(s.b_curl||'');
   s.remote={enabled:on('rm_en'),url:val('rm_url'),regexp:val('rm_re'),reserved:val('rm_res'),cache:+val('rm_cache')||0};
   s.api_mac={enabled:on('am_en'),code:val('am_code'),prob:+val('am_prob')||0};
 }
@@ -1407,7 +1700,7 @@ function openFlowSettings(focus){
         <div class="fld"><label>ID — the link is ${esc(base)}/<b>ID</b></label><input id="g_id" value="${esc(g.id)}" autocomplete="off"></div>
         <div class="fld"><label>Name</label><input id="g_name" value="${esc(g.name||'')}" placeholder="for you, shown in reports"></div>
       </div>
-      <div class="fld"><label>Aliases — other IDs that open this flow</label><input id="g_aliases" value="${esc((g.aliases||[]).join(', '))}" placeholder="comma-separated"></div>
+      <div class="fld"><label>Aliases — other IDs that open this flow</label>${tagField('g_aliases',g.aliases||[],'another-id',{})}</div>
     </div>
     <div class="sec" id="sec-default"><div class="st">Default — when no stream matches</div>
       <div class="g2">
@@ -1416,7 +1709,8 @@ function openFlowSettings(focus){
       </div>
       ${g.redirect==='group'
         ?`<div class="fld"><label>Send the visitor to flow</label>${sel('g_group','<option value="">— choose a flow —</option>'+others.map(x=>opt(x.id,x.id+(x.name?' — '+x.name:''),(g.out||'').trim())).join(''))}</div>`
-        :`<div class="fld"><label>Output</label><textarea id="g_out" class="mono" spellcheck="false">${esc(g.out||'')}</textarea></div>`}
+        :NOOUT.has(g.redirect||'stop')?`<div class="hint">A fixed answer — there is nothing to fill in.</div>`
+        :`<div class="fld"><label>${outLabel(g.redirect)}</label>${variantsField('g_outv',g.out,!URLISH.has(g.redirect),outPH(g.redirect))}<div class="hint">With several variants, a random one is served.</div></div>`}
     </div>
     <div class="sec"><div class="st">Visitors</div>
       <div class="g3">
@@ -1452,6 +1746,7 @@ function openFlowSettings(focus){
   DRAWER.commit=collectFlow;
   const bind=()=>{
     const b=q('#g_body',el), keep=b.scrollTop; b.innerHTML=paint(); b.scrollTop=keep;
+    bindTags(b); bindVariants(b);
     q('#g_redirect',b).addEventListener('change',()=>setTimeout(()=>{bind()},0));
     q('#g_dup',b).onclick=()=>{closeDrawer();duplicateFlow(g)};
     q('#g_del',b).onclick=()=>{closeDrawer();deleteFlow(g)};
@@ -1472,9 +1767,9 @@ function collectFlow(){
   const v=id=>q('#'+id,d), val=id=>{const e=v(id);return e?e.value:''}, on=id=>{const e=v(id);return !!(e&&e.checked)};
   const was=g.id;
   g.id=val('g_id').trim(); g.name=val('g_name').trim();
-  g.aliases=val('g_aliases').split(',').map(x=>x.trim()).filter(Boolean);
+  g.aliases=v('g_aliases')?tagValues(v('g_aliases')):(g.aliases||[]);
   const prev=g.redirect; g.redirect=val('g_redirect'); g.header=val('g_header');
-  g.out=g.redirect==='group'?(v('g_group')?val('g_group'):(prev==='group'?g.out:'')):(v('g_out')?val('g_out'):(prev==='group'?'':g.out||''));
+  g.out=g.redirect==='group'?(v('g_group')?val('g_group'):(prev==='group'?g.out:'')):(v('g_outv')?readVariants(v('g_outv')):(prev==='group'?'':g.out||''));
   g.geo=val('g_geo'); g.uniq_method=val('g_uniq');
   g.uniq_seconds=Math.max(0,Math.round((+val('g_uniqh')||0)*3600))||86400;
   g.save_keys=on('g_savekeys'); g.save_keys_se=on('g_savekeys_se');

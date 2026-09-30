@@ -93,6 +93,37 @@ Snapshot as of 2026-09-30. For details: `docs/USAGE.md`, `TODO.md`.
      (`ab`, 50 keep-alive connections, geo databases loaded, no Redis or
      ClickHouse): `main` about 110k req/s, this branch 118–163k over three
      runs — noisy, but no regression, so the figures in the README stand.
+- **2026-09-30 — flows read as words** (admin only; the config format and the
+  engine are unchanged):
+  1. **Conditions are sentences with chips.** "organization contains amazon,
+     google, hetzner +4" instead of `/amazon|google|…/i`; countries carry flags;
+     text conditions say `contains`, expressions `matches`. In the editor,
+     values are chips (Enter, a comma or a pasted list), not a comma-separated
+     string. An expression that is only alternatives is shown and edited as
+     words and saved as the same expression, flags included — untouched, byte
+     for byte; a real expression is edited as text. The router reads `raw`, so
+     that is what decides whether a condition is an expression.
+  2. **An expression the engine cannot use is caught.** RE2 compiles no
+     lookarounds or back-references, and a pattern that does not compile never
+     matches — under `is` that turns every visitor away. The editor names the
+     problem while the pattern is typed; the canvas marks the chip.
+  3. **Outputs are rows.** Variants (`|||` in the config) are one row each, with
+     "which variant a visit gets" shown only when there are several, in words;
+     the canvas lists them one per line and highlights macros. The same for
+     the bots' output and the flow default. Proxy rewrites (`find|||replace`
+     lines) are find → replace rows, shown where they apply (the type is
+     "Proxy a page"). Fields a type does not use are hidden and keep their
+     values.
+  4. Smaller: limits read "50 per hour", schedules "weekdays"; days start on
+     Monday; aliases are chips and checked like IDs on save; with a drawer open
+     the save bar sits beside it, above the scrim, so a click on Save saves
+     instead of closing the drawer.
+  5. The helpers that convert stored values and back live in one block of the
+     page that `web_logic_test.go` runs under node (`-tags=uitest`): word
+     lists ↔ expressions, flags, escaping, variants, rewrites. In the browser
+     against the stand: scenario 105/105 (every flow through the editor
+     without edits leaves every condition byte-identical; a case-sensitive
+     `/Buy|buy/` keeps both words through an edit elsewhere), drag 10/10.
 - **Fix**: country/lang/text filters also work when only `values` is set (no
   `raw`) — `router.go: cfgd()/orJoin()`.
 - **Fix (found by e2e tests, 2026-06-07):**

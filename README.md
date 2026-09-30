@@ -67,9 +67,10 @@ not like a script.**
   parameterized queries, `X-Forwarded-For` and `CF-IPCountry` believed only
   from trusted proxies, JSON-only input.
 - 🎛️ **Batteries included** — a polished, **embedded** admin panel: flows drawn
-  as they work (drag streams to reorder, line widths follow the traffic), a
-  visitor test that shows which rule stopped whom, dashboard, logs, conversions,
-  `.dat` editor, automation. No Node build, no separate web server.
+  as they work (drag streams to reorder, line widths follow the traffic),
+  conditions and outputs shown as words and rows instead of `|`-separated
+  strings, a visitor test that shows which rule stopped whom, dashboard, logs,
+  conversions, `.dat` editor, automation. No Node build, no separate web server.
 - 🕒 **A background service** — `cmd/cron` keeps bot IP lists and geo databases
   fresh, checks your domains with VirusTotal, watches the disk and reports
   conversions to Telegram.
@@ -171,8 +172,9 @@ the visitor away. It runs on the flows as edited, before saving:
 ![Test a visitor](docs/img/flow-test.png)
 
 **Stream editor** (dark theme) — a drawer over the page. *When*: only the
-conditions this stream uses, more from "Add condition". *Then*: where to send,
-including another flow. Bots and the rare options are folded below:
+conditions this stream uses, values as chips, more from "Add condition". *Then*:
+where to send — several variants are rows — including another flow. Bots and the
+rare options are folded below:
 
 ![Stream editor](docs/img/stream.png)
 
@@ -575,9 +577,10 @@ exact match; `ua`/`referer`/`key`/`org` accept `/regex/` or a substring;
 `[()COUNTRY()]` `[()CITY()]` · `[RANDNUM-a-b]` · `[RANDSTR-(charset)-n]` ·
 `[RANDLINE-(file)-n[/u]]` · `[RANDDFL-(dir)-n[/u]]`.
 
-**Distribution** — put several variants in `out` separated by `|||` and choose
-`distribution`: `random`, `rotator` (sticky per cookie), or `evenly` (Redis
-counter, round-robin).
+**Distribution** — put several variants in `out` separated by `|||` (in the
+admin: **Add a variant** under the output) and choose `distribution`: `random`,
+`rotator` (each visitor gets the next one; the position is kept in a cookie), or
+`evenly` (Redis counter, round-robin for everyone).
 
 ---
 
@@ -682,7 +685,7 @@ breakdown,performance}`, `GET /api/logs`, `GET /api/logs/filters`, `GET /api/log
 ```bash
 go test ./...                              # unit tests (16 packages)
 go test -tags=integration ./...            # + ClickHouse/Redis round-trips (needs make infra-up)
-go test -tags=uitest ./internal/admin/     # checks the embedded SPA's JS parses (needs node)
+go test -tags=uitest ./internal/admin/     # the embedded SPA: its JS parses, its value conversions hold (needs node)
 go vet ./...
 make bench                                 # ipindex (~10 ns/lookup) and geo lookup benchmarks
 ```
@@ -692,7 +695,9 @@ the full pipeline (all redirect types, all macros, bots, geo, filters, operators
 distribution, limits, firewall, separation, schedule, chance, api mode, and a
 traffic matrix). `internal/cron` runs every job against local HTTP servers —
 downloads in all formats, refusals of bad ones, alerts, the schedule.
-ClickHouse tests are behind the `integration` build tag and skip
+`internal/admin/web_logic_test.go` runs the admin's value conversions under
+node — word lists ↔ regular expressions, flags, output variants — so what the
+editor shows is saved back exactly. ClickHouse tests are behind the `integration` build tag and skip
 automatically when ClickHouse is unavailable. Coverage snapshot:
 [`docs/STATUS.md`](docs/STATUS.md).
 
